@@ -27,6 +27,8 @@ const pacienteSchema = Joi.object({
   tipo_transito: Joi.string().valid('1ª Habilitação', 'Primeira Habilitação', 'Renovação', 'Adição/Mudança de Categoria', 'Curso Escolar', 'Instrutor', 'Segunda via', 'Reincidente', 'EAR - Exerce Atividade Remunerada', 'Cassação', 'Reg. Estrangeiro').optional().allow('', null),
   escolaridade: Joi.string().valid('E. Fundamental', 'E. Médio', 'E. Superior', 'Pós-Graduação', 'Não Escolarizado').optional().allow('', null),
   telefone: Joi.string().max(100).optional().allow('', null), // Aumentado para aceitar JSON strings
+  telefone_fixo: Joi.string().max(20).optional().allow('', null),
+  telefone_celular: Joi.string().max(20).optional().allow('', null),
   email: Joi.string().email().optional().allow('', null),
   endereco: Joi.string().max(500).optional().allow('', null),
   observacoes: Joi.string().max(3000).optional().allow('', null),

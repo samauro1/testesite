@@ -55,10 +55,21 @@ api.interceptors.request.use(
         config.headers['Pragma'] = 'no-cache';
         config.headers['Expires'] = '0';
       }
+      
+      // Log para requisições de tabelas/calculate
+      if (url.includes('/tabelas/') && url.includes('/calculate')) {
+        console.log('🔵 [INTERCEPTOR REQUEST] Interceptando requisição para:', url);
+        console.log('🔵 Method:', config.method);
+        console.log('🔵 Data:', config.data);
+        console.log('🔵 Headers:', config.headers);
+        console.log('🔵 BaseURL:', config.baseURL);
+        console.log('🔵 URL Completa:', config.baseURL + config.url);
+      }
     }
     return config;
   },
   (error) => {
+    console.error('🔴 [INTERCEPTOR REQUEST ERROR]', error);
     return Promise.reject(error);
   }
 );
@@ -79,9 +90,24 @@ export function clearAuth() {
 // Interceptor para tratar respostas e erros
 api.interceptors.response.use(
   (response) => {
+    const url = response.config?.url || '';
+    if (url.includes('/tabelas/') && url.includes('/calculate')) {
+      console.log('🟢 [INTERCEPTOR RESPONSE] Resposta recebida para:', url);
+      console.log('🟢 Status:', response.status);
+      console.log('🟢 Data:', response.data);
+    }
     return response;
   },
   (error) => {
+    const url = error.config?.url || '';
+    if (url.includes('/tabelas/') && url.includes('/calculate')) {
+      console.error('🔴 [INTERCEPTOR RESPONSE ERROR] Erro na requisição:', url);
+      console.error('🔴 Status:', error.response?.status);
+      console.error('🔴 Data:', error.response?.data);
+      console.error('🔴 Message:', error.message);
+      console.error('🔴 Stack:', error.stack);
+    }
+    
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
@@ -154,12 +180,19 @@ export const avaliacoesService = {
   update: (id: string, data: Partial<Avaliacao>) => api.put<ApiResponse<Avaliacao>>(`/avaliacoes/${id}`, data),
   delete: (id: string) => api.delete<ApiResponse>(`/avaliacoes/${id}`),
   getTestes: (id: string) => api.get<ApiResponse>(`/avaliacoes/${id}/testes`),
+  getStatusMensagem: (id: string) => api.get<ApiResponse<{ messageSent: boolean; data_envio: string | null; metodo_envio: string | null; avaliacaoMaisRecente: boolean }>>(`/avaliacoes/${id}/status-mensagem`),
 };
 
 export const tabelasService = {
   list: () => api.get<ApiResponse>('/tabelas'),
   get: (tipo: string) => api.get<ApiResponse>(`/tabelas/${tipo}`),
-  calculate: (tipo: string, data: Record<string, unknown>) => api.post<ApiResponse<TestResult>>(`/tabelas/${tipo}/calculate`, data),
+  calculate: (tipo: string, data: Record<string, unknown>) => {
+    console.log('🌐 [tabelasService.calculate] Chamado!');
+    console.log('🌐 Tipo:', tipo);
+    console.log('🌐 Data:', data);
+    console.log('🌐 URL completa:', `${API_BASE_URL}/tabelas/${tipo}/calculate`);
+    return api.post<ApiResponse<TestResult>>(`/tabelas/${tipo}/calculate`, data);
+  },
   getSugestoes: (tipo: string, pacienteData: any) => api.post<ApiResponse>(`/tabelas/sugestoes/${tipo}`, pacienteData),
 };
 
@@ -232,6 +265,7 @@ export const nfsEService = {
   testarConexao: () => api.post('/nfs-e-login-real/testar-conexao'),
   instrucoesRPA: () => api.get('/nfs-e-login-real/instrucoes'),
   cancelar: (id: string, motivo: string) => api.post(`/nfs-e/cancelar/${id}`, { motivo }),
+  verificarUltimos7Dias: (pacienteId: number) => api.get(`/nfs-e/verificar-ultimos-7-dias/${pacienteId}`),
 };
 
 export const detranService = {

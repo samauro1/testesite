@@ -58,6 +58,9 @@ router.get('/', async (req, res) => {
       SELECT 
         a.*,
         p.nome as paciente_nome,
+        p.telefone_celular as paciente_telefone_celular,
+        p.telefone_fixo as paciente_telefone_fixo,
+        p.email as paciente_email,
         u.nome as usuario_nome,
         (
           SELECT aptidao 
@@ -65,7 +68,14 @@ router.get('/', async (req, res) => {
           WHERE paciente_id = a.paciente_id AND aptidao IS NOT NULL
           ORDER BY data_aplicacao DESC, created_at DESC 
           LIMIT 1
-        ) as ultima_aptidao
+        ) as ultima_aptidao,
+        (
+          SELECT id 
+          FROM avaliacoes 
+          WHERE paciente_id = a.paciente_id AND aptidao IS NOT NULL
+          ORDER BY data_aplicacao DESC, created_at DESC 
+          LIMIT 1
+        ) as ultima_avaliacao_id
       FROM agendamentos a 
       LEFT JOIN pacientes p ON a.paciente_id = p.id
       LEFT JOIN usuarios u ON a.created_at = u.created_at

@@ -111,6 +111,10 @@ const PacientesPage: React.FC = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   
+  // Estados para modal de confirmação de NFS-e
+  const [showNfsEConfirmModal, setShowNfsEConfirmModal] = useState(false);
+  const [nfsEConfirmData, setNfsEConfirmData] = useState<{paciente: Patient, nfsEExistente: any} | null>(null);
+  
   // Hook de autenticação
   const { isAuthenticated, login, logout, error: authError } = useAuthHook();
   
@@ -210,50 +214,52 @@ const PacientesPage: React.FC = () => {
         response_data: response.data.data
       });
       
-      // Para Trânsito, SEMPRE usar valor padrão (fixo, não editável)
+      // Aplicar valor padrão ao campo nfsValor baseado nas regras:
+      // 1. Para Trânsito, SEMPRE usar valor padrão (independente de valor salvo ou forma de pagamento)
+      // 2. Para outros contextos não-misto: usar valor salvo se existir e for > 0, senão usar valor padrão
+      // 3. Para misto: ajustar valores separados se necessário
+      
+      const valorSalvo = selectedPatient.nfs_valor;
+      const valorSalvoNum = valorSalvo ? parseFloat(String(valorSalvo).replace(',', '.').replace(/[^\d.]/g, '')) || 0 : 0;
+      
       if (selectedPatient.contexto === 'Trânsito') {
+        // Trânsito: SEMPRE usar valor padrão
         if (nfsFormaPagamento === 'misto') {
-          // Se for misto e Trânsito, garantir que o total seja sempre o valor padrão
-          // Se os valores já foram carregados, recalcular para garantir que somem o padrão
+          // Para misto e Trânsito, garantir que o total seja sempre o valor padrão
           const valorDinheiroNum = parseFloat(nfsValorDinheiro.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
           const valorPixNum = parseFloat(nfsValorPix.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
           const totalAtual = valorDinheiroNum + valorPixNum;
           const valorPadraoNum = parseFloat(valorFormatado);
           
-          // Se o total atual não é igual ao padrão, ajustar proporcionalmente
           if (totalAtual !== valorPadraoNum && totalAtual > 0) {
+            // Ajustar proporcionalmente
             const proporcaoDinheiro = valorDinheiroNum / totalAtual;
             const proporcaoPix = valorPixNum / totalAtual;
             setNfsValorDinheiro((valorPadraoNum * proporcaoDinheiro).toFixed(2));
             setNfsValorPix((valorPadraoNum * proporcaoPix).toFixed(2));
           } else if (totalAtual === 0) {
-            // Se não há valores, dividir igualmente
+            // Dividir igualmente se não há valores
             const meioValor = (valorPadraoNum / 2).toFixed(2);
             setNfsValorDinheiro(meioValor);
             setNfsValorPix(meioValor);
           }
-          setNfsValor(valorFormatado);
-        } else {
-          // Trânsito sempre usa valor padrão (não editável, fixo)
-          setNfsValor(valorFormatado);
         }
+        // Trânsito sempre usa valor padrão (não editável, fixo)
+        console.log('💰 Trânsito: aplicando valor padrão:', valorFormatado);
+        setNfsValor(valorFormatado);
       } else {
-        // Outros contextos: pode variar o valor
-        if (nfsFormaPagamento !== 'misto') {
-          // Outros contextos não-misto (PIX ou Dinheiro): 
-          // Usar valor salvo se existir e for válido (maior que 0), senão sempre usar valor padrão
-          const valorSalvo = selectedPatient.nfs_valor;
-          const valorSalvoNum = valorSalvo ? parseFloat(String(valorSalvo).replace(',', '.').replace(/[^\d.]/g, '')) || 0 : 0;
-          
+        // Outros contextos: usar valor salvo se válido, senão usar padrão
+        if (nfsFormaPagamento === 'misto') {
+          // Para misto, os valores já foram carregados anteriormente, não precisa ajustar o total
+        } else {
+          // PIX ou Dinheiro
           if (valorSalvoNum > 0) {
-            // Tem valor salvo válido, usar ele
+            console.log('💰 Usando valor salvo:', valorSalvo);
             setNfsValor(String(valorSalvo));
           } else {
-            // Não tem valor salvo ou é inválido, SEMPRE usar valor padrão
+            console.log('💰 Sem valor salvo: aplicando valor padrão:', valorFormatado);
             setNfsValor(valorFormatado);
           }
-        } else {
-          // Outros contextos misto: os valores já foram carregados, não precisa ajustar
         }
       }
     } catch (error) {
@@ -412,6 +418,7 @@ const PacientesPage: React.FC = () => {
   const [expandedLaudo, setExpandedLaudo] = useState<string | null>(null);
   const [expandedLaudos, setExpandedLaudos] = useState<Set<string>>(new Set());
   const [testesData, setTestesData] = useState<any>({});
+  const [loadingTestes, setLoadingTestes] = useState<Set<string>>(new Set());
 
   const queryClient = useQueryClient();
 
@@ -744,9 +751,71 @@ const PacientesPage: React.FC = () => {
           if (pacienteData) {
             setSelectedPatient(pacienteData);
           }
+          
+          // Recarregar foto do RENACH para atualizar na interface
+          // Adicionar pequeno delay para garantir que o banco foi atualizado
+          setTimeout(async () => {
+            try {
+              console.log('🔄 Recarregando foto do RENACH após upload...');
+              const renachResponse = await pacientesService.getRenach(selectedPatient.id);
+              const renachData = renachResponse.data?.data;
+              console.log('📸 Dados do RENACH recebidos:', {
+                temFoto: !!renachData?.renach_foto,
+                tamanhoFoto: renachData?.renach_foto?.length,
+                fotoPreview: renachData?.renach_foto?.substring(0, 50)
+              });
+              
+              if (renachData?.renach_foto) {
+                // Garantir que a foto está no formato correto (data:image se for base64)
+                let fotoFormatada = renachData.renach_foto;
+                if (!fotoFormatada.startsWith('data:image')) {
+                  // Se não começar com data:image, assumir que é base64 puro e adicionar o prefixo
+                  fotoFormatada = `data:image/jpeg;base64,${fotoFormatada}`;
+                }
+                console.log('✅ Foto formatada e sendo aplicada');
+                setRenachFoto(fotoFormatada);
+                setRenachArquivo(renachData.renach_arquivo || null);
+              } else {
+                console.log('⚠️ Nenhuma foto encontrada no RENACH');
+                setRenachFoto(null);
+              }
+            } catch (error) {
+              console.error('❌ Erro ao recarregar foto do RENACH:', error);
+            }
+          }, 500); // Delay de 500ms para garantir que o banco foi atualizado
         } else {
           toast.dismiss();
           toast.success('Arquivo RENACH salvo com sucesso!');
+          
+          // Mesmo sem dados extraídos, recarregar a foto do RENACH
+          setTimeout(async () => {
+            try {
+              console.log('🔄 Recarregando foto do RENACH após upload (sem dados extraídos)...');
+              const renachResponse = await pacientesService.getRenach(selectedPatient.id);
+              const renachData = renachResponse.data?.data;
+              console.log('📸 Dados do RENACH recebidos:', {
+                temFoto: !!renachData?.renach_foto,
+                tamanhoFoto: renachData?.renach_foto?.length
+              });
+              
+              if (renachData?.renach_foto) {
+                // Garantir que a foto está no formato correto (data:image se for base64)
+                let fotoFormatada = renachData.renach_foto;
+                if (!fotoFormatada.startsWith('data:image')) {
+                  // Se não começar com data:image, assumir que é base64 puro e adicionar o prefixo
+                  fotoFormatada = `data:image/jpeg;base64,${fotoFormatada}`;
+                }
+                console.log('✅ Foto formatada e sendo aplicada');
+                setRenachFoto(fotoFormatada);
+                setRenachArquivo(renachData.renach_arquivo || null);
+              } else {
+                console.log('⚠️ Nenhuma foto encontrada no RENACH');
+                setRenachFoto(null);
+              }
+            } catch (error) {
+              console.error('❌ Erro ao recarregar foto do RENACH:', error);
+            }
+          }, 500); // Delay de 500ms para garantir que o banco foi atualizado
         }
         
         queryClient.invalidateQueries({ queryKey: ['pacientes'] });
@@ -901,7 +970,7 @@ Atenciosamente,
     }
   };
 
-  // Função para emitir NFS-e
+  // Função para verificar e emitir NFS-e (com verificação de 7 dias)
   const handleEmitirNfsE = async (paciente: Patient) => {
     try {
       // Verificar se o paciente tem dados necessários
@@ -910,6 +979,38 @@ Atenciosamente,
         return;
       }
 
+      // Verificar se há NFS-e nos últimos 7 dias
+      try {
+        const verificacaoResponse = await nfsEService.verificarUltimos7Dias(paciente.id);
+        const verificacao = verificacaoResponse.data?.data || verificacaoResponse.data;
+        
+        if (verificacao?.tem_nfs_e && verificacao.nfs_e) {
+          // Mostrar modal de confirmação
+          setNfsEConfirmData({
+            paciente,
+            nfsEExistente: verificacao.nfs_e
+          });
+          setShowNfsEConfirmModal(true);
+          return; // Não continuar até o usuário confirmar
+        }
+      } catch (error) {
+        console.error('Erro ao verificar NFS-e dos últimos 7 dias:', error);
+        // Continuar mesmo se houver erro na verificação
+      }
+
+      // Se chegou aqui, não há NFS-e nos últimos 7 dias ou houve erro na verificação
+      // Continuar com a emissão normalmente
+      await emitirNfsE(paciente);
+
+    } catch (error: any) {
+      console.error('Erro ao processar emissão de NFS-e:', error);
+      toast.error(error.response?.data?.error || 'Erro ao processar emissão de NFS-e');
+    }
+  };
+
+  // Função interna para realizar a emissão da NFS-e
+  const emitirNfsE = async (paciente: Patient) => {
+    try {
       // Buscar configurações de NFS-e
       const configResponse = await nfsEService.getConfiguracoes();
       const config = configResponse.data?.data || {};
@@ -985,6 +1086,21 @@ Atenciosamente,
     }
   };
 
+  // Função para confirmar emissão mesmo com NFS-e existente
+  const handleConfirmarEmitirNfsE = async () => {
+    if (!nfsEConfirmData?.paciente) return;
+    
+    setShowNfsEConfirmModal(false);
+    await emitirNfsE(nfsEConfirmData.paciente);
+    setNfsEConfirmData(null);
+  };
+
+  // Função para cancelar emissão
+  const handleCancelarEmitirNfsE = () => {
+    setShowNfsEConfirmModal(false);
+    setNfsEConfirmData(null);
+  };
+
   const resetForm = () => {
     setFormData({
       nome: '',
@@ -1017,17 +1133,45 @@ Atenciosamente,
           const data = response.data?.data;
           if (data) {
             setRenachArquivo(data.renach_arquivo);
-            setRenachFoto(data.renach_foto);
+            
+            // Garantir que a foto está no formato correto (data:image se for base64)
+            if (data.renach_foto) {
+              let fotoFormatada = data.renach_foto;
+              if (!fotoFormatada.startsWith('data:image')) {
+                // Se não começar com data:image, assumir que é base64 puro e adicionar o prefixo
+                fotoFormatada = `data:image/jpeg;base64,${fotoFormatada}`;
+              }
+              setRenachFoto(fotoFormatada);
+            } else {
+              setRenachFoto(null);
+            }
           }
         })
         .catch(error => {
-          console.log('Sem arquivo RENACH para este paciente');
+          console.log('Sem arquivo RENACH para este paciente:', error);
+          setRenachFoto(null);
+          setRenachArquivo(null);
         });
     } else {
       setRenachArquivo(null);
       setRenachFoto(null);
     }
   }, [showPatientDetail, selectedPatient?.id]); // Mudança: usar selectedPatient?.id em vez de selectedPatient
+
+  // useEffect para atualizar o valor quando nfsValorPadrao for carregado e não houver valor salvo
+  React.useEffect(() => {
+    if (!showPatientDetail || !selectedPatient) return;
+    
+    // Se o valor padrão foi carregado (não é 0.00) e o valor atual é 0.00 e não há valor salvo
+    const valorSalvo = selectedPatient.nfs_valor;
+    const valorSalvoNum = valorSalvo ? parseFloat(String(valorSalvo).replace(',', '.')) : 0;
+    const valorAtualNum = parseFloat(String(nfsValor).replace(',', '.')) || 0;
+    
+    if (nfsValorPadrao && nfsValorPadrao !== '0.00' && valorAtualNum === 0 && valorSalvoNum <= 0 && nfsFormaPagamento !== 'misto') {
+      console.log('💰 useEffect: Aplicando valor padrão automaticamente:', nfsValorPadrao);
+      setNfsValor(nfsValorPadrao);
+    }
+  }, [nfsValorPadrao, showPatientDetail, selectedPatient, nfsFormaPagamento, nfsValor]);
 
   const resetAvaliacaoForm = () => {
     setAvaliacaoData({
@@ -1157,11 +1301,21 @@ Atenciosamente,
     carregarNfsEmitidas(paciente.id);
     
     // Carregar valor das configurações de NFS-e (deve ser chamado depois de setSelectedPatient)
-    // Aumentar o timeout para garantir que selectedPatient está definido
+    // Usar timeout para garantir que setSelectedPatient foi executado
     setTimeout(() => {
       console.log('🔄 Chamando carregarValorNfsE para paciente:', paciente.nome);
-      carregarValorNfsE();
-    }, 200);
+      // Usar selectedPatient do estado (já foi setado acima), mas garantir que está definido
+      const pacienteAtual = selectedPatient || paciente;
+      if (pacienteAtual) {
+        carregarValorNfsE();
+      } else {
+        // Se ainda não está definido, tentar novamente após mais um pouco
+        setTimeout(() => {
+          console.log('🔄 Tentativa 2: Chamando carregarValorNfsE');
+          carregarValorNfsE();
+        }, 300);
+      }
+    }, 400); // Aumentado para 400ms para garantir que selectedPatient foi atualizado
     
     // Carregar dados NFS-e existentes do paciente
     setNfsNumero(paciente.nfs_numero || '');
@@ -1198,12 +1352,13 @@ Atenciosamente,
       setNfsValorDinheiro('');
       setNfsValorPix('');
       
-      // Se houver valor salvo e for maior que 0, usar o valor salvo, senão o carregarValorNfsE aplicará o padrão
+      // Se houver valor salvo e for maior que 0, usar o valor salvo
+      // Senão, deixar vazio para que carregarValorNfsE aplique o valor padrão
       if (paciente.nfs_valor && parseFloat(String(paciente.nfs_valor).replace(',', '.')) > 0) {
         setNfsValor(String(paciente.nfs_valor));
       } else {
-        // Valor será carregado pelo carregarValorNfsE (que carrega o padrão)
-        setNfsValor('');
+        // Inicializar com valor vazio - carregarValorNfsE aplicará o padrão após carregar
+        setNfsValor('0.00'); // Temporariamente 0.00, será atualizado por carregarValorNfsE
       }
     }
   };
@@ -1237,21 +1392,46 @@ Atenciosamente,
       const newExpanded = new Set(expandedLaudos);
       newExpanded.delete(laudo);
       setExpandedLaudos(newExpanded);
+      // Remover do loading também
+      const newLoading = new Set(loadingTestes);
+      newLoading.delete(laudo);
+      setLoadingTestes(newLoading);
     } else {
       // Expandir
       const newExpanded = new Set(expandedLaudos);
       newExpanded.add(laudo);
       setExpandedLaudos(newExpanded);
       
+      // Marcar como carregando
+      const newLoading = new Set(loadingTestes);
+      newLoading.add(laudo);
+      setLoadingTestes(newLoading);
+      
       // SEMPRE buscar testes novamente (não usar cache) para pegar atualizações
       const avaliacoesDoLaudo = avaliacoesAgrupadas[laudo];
       const todosOsTestes: any[] = [];
       
       try {
+        console.log(`🔍 Buscando testes para laudo ${laudo}...`);
         for (const avaliacao of avaliacoesDoLaudo) {
           try {
+            console.log(`  → Buscando testes da avaliação ${avaliacao.id} (Laudo ${avaliacao.numero_laudo})`);
             const response = await avaliacoesService.getTestes(avaliacao.id);
-            const testes = (response as any)?.data?.data?.testes || [];
+            console.log(`  📦 Resposta completa da API:`, response);
+            console.log(`  📦 response.data:`, (response as any)?.data);
+            console.log(`  📦 response.data?.data:`, (response as any)?.data?.data);
+            
+            // Tentar múltiplos caminhos possíveis para acessar os testes
+            const testes = (response as any)?.data?.data?.testes || 
+                          (response as any)?.data?.testes || 
+                          (response as any)?.testes || 
+                          [];
+            
+            console.log(`  ✅ Encontrados ${testes.length} testes para avaliação ${avaliacao.id}`);
+            
+            if (testes.length > 0) {
+              console.log(`  📊 Tipos de testes encontrados:`, testes.map((t: any) => t.tipo || t.nome || 'desconhecido'));
+            }
             
             testes.forEach((teste: any) => {
               todosOsTestes.push({
@@ -1262,20 +1442,29 @@ Atenciosamente,
               });
             });
           } catch (error: any) {
-            console.error(`Erro ao buscar testes da avaliação ${avaliacao.numero_laudo}:`, error);
+            console.error(`❌ Erro ao buscar testes da avaliação ${avaliacao.numero_laudo}:`, error);
+            console.error(`   Status: ${error.response?.status}, Mensagem: ${error.response?.data?.error || error.message}`);
+            console.error(`   Response completa:`, error.response?.data);
             // Se der erro em uma avaliação, continua com as outras
             if (error.response?.status !== 404) {
               // Se não for 404, pode ser um problema real
-              console.warn('Erro ao buscar testes, mas continuando:', error.message);
+              console.warn('⚠️ Erro ao buscar testes, mas continuando:', error.message);
             }
           }
         }
+        
+        console.log(`✅ Total de testes encontrados para laudo ${laudo}: ${todosOsTestes.length}`);
         
         // Atualizar o cache de testes
         setTestesData((prev: any) => ({
           ...prev,
           [laudo]: todosOsTestes
         }));
+        
+        // Remover do loading
+        const newLoadingFinal = new Set(loadingTestes);
+        newLoadingFinal.delete(laudo);
+        setLoadingTestes(newLoadingFinal);
         
         if (todosOsTestes.length === 0) {
           toast('ℹ️ Nenhum teste encontrado para este laudo', {
@@ -1284,8 +1473,12 @@ Atenciosamente,
           });
         }
       } catch (error) {
-        console.error('Erro ao buscar testes:', error);
+        console.error('❌ Erro ao buscar testes:', error);
         toast.error('Erro ao carregar testes');
+        // Remover do loading em caso de erro
+        const newLoadingFinal = new Set(loadingTestes);
+        newLoadingFinal.delete(laudo);
+        setLoadingTestes(newLoadingFinal);
       }
     }
   };
@@ -1316,6 +1509,11 @@ Atenciosamente,
       todosLaudos.forEach(laudo => novosExpandidos.add(laudo));
       setExpandedLaudos(novosExpandidos);
       
+      // Marcar todos como carregando
+      const novosLoading = new Set(loadingTestes);
+      todosLaudos.forEach(laudo => novosLoading.add(laudo));
+      setLoadingTestes(novosLoading);
+      
       // Buscar testes de todos os laudos que não foram buscados ainda
       for (const laudo of todosLaudos) {
         if (!testesData[laudo]) {
@@ -1325,8 +1523,16 @@ Atenciosamente,
           try {
             for (const avaliacao of avaliacoesDoLaudo) {
               try {
+                console.log(`  → Buscando testes da avaliação ${avaliacao.id} (Laudo ${avaliacao.numero_laudo})`);
                 const response = await avaliacoesService.getTestes(avaliacao.id);
-                const testes = (response as any)?.data?.data?.testes || [];
+                
+                // Tentar múltiplos caminhos possíveis para acessar os testes
+                const testes = (response as any)?.data?.data?.testes || 
+                              (response as any)?.data?.testes || 
+                              (response as any)?.testes || 
+                              [];
+                
+                console.log(`  ✅ Encontrados ${testes.length} testes para avaliação ${avaliacao.id}`);
                 
                 testes.forEach((teste: any) => {
                   todosOsTestes.push({
@@ -1337,7 +1543,8 @@ Atenciosamente,
                   });
                 });
               } catch (error: any) {
-                console.error(`Erro ao buscar testes da avaliação ${avaliacao.numero_laudo}:`, error);
+                console.error(`❌ Erro ao buscar testes da avaliação ${avaliacao.numero_laudo}:`, error);
+                console.error(`   Status: ${error.response?.status}, Mensagem: ${error.response?.data?.error || error.message}`);
               }
             }
             
@@ -1347,7 +1554,17 @@ Atenciosamente,
             }));
           } catch (error) {
             console.error('Erro ao buscar testes:', error);
+          } finally {
+            // Remover do loading após buscar (mesmo que dê erro)
+            const novosLoadingFinal = new Set(loadingTestes);
+            novosLoadingFinal.delete(laudo);
+            setLoadingTestes(novosLoadingFinal);
           }
+        } else {
+          // Se já tem dados em cache, remover do loading imediatamente
+          const novosLoadingFinal = new Set(loadingTestes);
+          novosLoadingFinal.delete(laudo);
+          setLoadingTestes(novosLoadingFinal);
         }
       }
       
@@ -1671,27 +1888,21 @@ Atenciosamente,
                   </td>
                   <td className="px-2 py-3 text-center">
                     <div className="flex justify-center items-center gap-1.5">
-                      {(paciente as any).ultima_aptidao && (
+                      {/* Botão de enviar resultado - adicionado na área de ações */}
+                      {(paciente as any).ultima_aptidao && (paciente as any).ultima_avaliacao_id && (
                         <ComunicarResultadoButton
-                          avaliacaoId={(paciente as any).ultima_avaliacao_id || 0}
+                          avaliacaoId={(paciente as any).ultima_avaliacao_id}
                           aptidao={(paciente as any).ultima_aptidao}
                           pacienteNome={paciente.nome}
                           pacienteEmail={paciente.email}
-                          pacienteTelefone={paciente.telefone}
+                          pacienteTelefone={
+                            // Priorizar telefone_celular para WhatsApp, senão telefone_fixo, senão telefone
+                            paciente.telefone_celular || paciente.telefone_fixo || paciente.telefone || ''
+                          }
                           variant="list"
                           className="text-xs"
                         />
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEmitirNfsE(paciente);
-                        }}
-                        className="p-1.5 bg-green-600 text-white rounded hover:bg-green-700 transition-all"
-                        title="Emitir NFS-e"
-                      >
-                        <Receipt className="h-3.5 w-3.5" />
-                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2298,6 +2509,7 @@ Atenciosamente,
                       const avaliacoesDoLaudo = avaliacoesArray as Avaliacao[];
                       const isExpanded = expandedLaudos.has(laudo);
                       const testes = testesData[laudo] || [];
+                      const isLoadingTestes = loadingTestes.has(laudo);
                       
                       // Pegar todas as datas únicas das avaliações deste laudo
                       const datas = [...new Set(avaliacoesDoLaudo.map(av => 
@@ -2334,12 +2546,15 @@ Atenciosamente,
                               </div>
                               <div className="flex items-center gap-2 ml-4">
                                 {/* Botão Enviar Resultado - PRIMEIRO */}
-                                {ultimaAptidao && (
+                                {ultimaAptidao && avaliacoesDoLaudo.find(av => av.aptidao)?.id && (
                                   <EnviarResultadoButton
-                                    avaliacaoId={avaliacoesDoLaudo.find(av => av.aptidao)?.id || 0}
+                                    avaliacaoId={avaliacoesDoLaudo.find(av => av.aptidao)!.id}
                                     aptidao={ultimaAptidao}
                                     pacienteNome={selectedPatient?.nome || ''}
-                                    pacienteTelefone={selectedPatient?.telefone}
+                                    pacienteTelefone={
+                                      // Priorizar telefone_celular para WhatsApp, senão telefone_fixo, senão telefone
+                                      selectedPatient?.telefone_celular || selectedPatient?.telefone_fixo || selectedPatient?.telefone || ''
+                                    }
                                     pacienteEmail={selectedPatient?.email}
                                     onMessageSent={() => {
                                       console.log('Resultado enviado para laudo', laudo);
@@ -2363,7 +2578,12 @@ Atenciosamente,
                           {/* Resultados expandidos */}
                           {isExpanded && (
                             <div className="p-4 bg-white">
-                              {testes.length > 0 ? (
+                              {isLoadingTestes ? (
+                                <div className="text-center py-8">
+                                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                                  <p className="text-gray-500">Carregando testes...</p>
+                                </div>
+                              ) : testes.length > 0 ? (
                                 <div className="space-y-4">
                                   {testes.map((teste: any, index: number) => (
                                     <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -2698,7 +2918,10 @@ Atenciosamente,
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-gray-500 text-center py-4">Carregando testes...</p>
+                                <div className="text-center py-8 text-gray-500">
+                                  <p className="mb-2">📭 Nenhum teste encontrado para este laudo</p>
+                                  <p className="text-sm text-gray-400">Realize testes através da opção &quot;Nova Avaliação&quot;</p>
+                                </div>
                               )}
 
                               {/* Seleção de Aptidão e Botões de ação */}
@@ -2770,12 +2993,15 @@ Atenciosamente,
                                         {avaliacoesDoLaudo.map((avaliacao: Avaliacao) => (
                                           <div key={avaliacao.id} className="flex items-center gap-2">
                                             {/* Botão Enviar Resultado */}
-                                            {avaliacao.aptidao && (
+                                            {avaliacao.aptidao && avaliacao.id && (
                                               <EnviarResultadoButton
                                                 avaliacaoId={avaliacao.id}
                                                 aptidao={avaliacao.aptidao}
                                                 pacienteNome={selectedPatient?.nome || ''}
-                                                pacienteTelefone={selectedPatient?.telefone}
+                                                pacienteTelefone={
+                                                  // Priorizar telefone_celular para WhatsApp, senão telefone_fixo, senão telefone
+                                                  selectedPatient?.telefone_celular || selectedPatient?.telefone_fixo || selectedPatient?.telefone || ''
+                                                }
                                                 pacienteEmail={selectedPatient?.email}
                                                 onMessageSent={() => {
                                                   // Recarregar dados se necessário
@@ -3652,6 +3878,68 @@ Atenciosamente,
         title="Autenticação Necessária"
         message="Para emitir NFS-e, faça login com suas credenciais:"
       />
+
+      {/* Modal de Confirmação de NFS-e (últimos 7 dias) */}
+      {showNfsEConfirmModal && nfsEConfirmData && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                  <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="ml-3 text-lg font-medium text-gray-900">
+                  NFS-e já emitida recentemente
+                </h3>
+              </div>
+              
+              <div className="mt-4">
+                <p className="text-sm text-gray-500 mb-4">
+                  A pessoa <strong>{nfsEConfirmData.paciente.nome}</strong> (CPF: <strong>{nfsEConfirmData.paciente.cpf}</strong>) já possui uma nota fiscal emitida nos últimos 7 dias.
+                </p>
+                
+                {nfsEConfirmData.nfsEExistente && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                    <p className="text-sm font-medium text-gray-700 mb-1">NFS-e existente:</p>
+                    <p className="text-xs text-gray-600">
+                      Número: <strong>{nfsEConfirmData.nfsEExistente.numero_nfs_e}</strong>
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Data: <strong>{new Date(nfsEConfirmData.nfsEExistente.data_emissao).toLocaleDateString('pt-BR')}</strong>
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Valor: <strong>R$ {Number(nfsEConfirmData.nfsEExistente.valor).toFixed(2).replace('.', ',')}</strong>
+                    </p>
+                  </div>
+                )}
+                
+                <p className="text-sm text-gray-700 mb-4">
+                  Deseja emitir uma nova NFS-e mesmo assim?
+                </p>
+              </div>
+              
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancelarEmitirNfsE}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Não
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmarEmitirNfsE}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Sim, emitir nova NFS-e
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </Layout>
   );

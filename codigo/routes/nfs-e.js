@@ -6,6 +6,54 @@ const { authenticateToken } = require('../middleware/auth');
 // Middleware de autenticação
 router.use(authenticateToken);
 
+// Verificar se paciente tem NFS-e nos últimos 7 dias
+router.get('/verificar-ultimos-7-dias/:paciente_id', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { paciente_id } = req.params;
+    
+    const seteDiasAtras = new Date();
+    seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+    
+    const result = await query(`
+      SELECT 
+        n.*,
+        p.nome as paciente_nome,
+        p.cpf as paciente_cpf
+      FROM nfs_e_emitidas n
+      JOIN pacientes p ON n.paciente_id = p.id
+      WHERE n.paciente_id = $1
+        AND n.usuario_id = $2
+        AND n.data_emissao >= $3
+        AND n.status != 'cancelada'
+      ORDER BY n.data_emissao DESC
+      LIMIT 1
+    `, [paciente_id, userId, seteDiasAtras]);
+    
+    if (result.rows.length > 0) {
+      const nfs = result.rows[0];
+      res.json({
+        tem_nfs_e: true,
+        nfs_e: {
+          id: nfs.id,
+          numero_nfs_e: nfs.numero_nfs_e,
+          data_emissao: nfs.data_emissao,
+          valor: nfs.valor,
+          paciente_nome: nfs.paciente_nome,
+          paciente_cpf: nfs.paciente_cpf
+        }
+      });
+    } else {
+      res.json({
+        tem_nfs_e: false
+      });
+    }
+  } catch (error) {
+    console.error('Erro ao verificar NFS-e:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Buscar configurações NFS-e do usuário
 router.get('/configuracoes', async (req, res) => {
   try {
@@ -176,11 +224,24 @@ router.post('/emitir', async (req, res) => {
     // Usar apenas as colunas que existem na tabela nfs_e_emitidas
     // A tabela tem: discriminacao (não discriminacao_servico)
     // E não tem codigo_servico (está apenas em configuracoes_nfs_e)
+    // Verificar se a coluna forma_pagamento existe, se não, criar
+    try {
+      await query(`
+        ALTER TABLE nfs_e_emitidas 
+        ADD COLUMN IF NOT EXISTS forma_pagamento VARCHAR(20)
+      `);
+    } catch (error) {
+      // Ignorar erro se a coluna já existir
+      console.log('Coluna forma_pagamento já existe ou erro ao criar:', error.message);
+    }
+    
+    const formaPagamentoFinal = forma_pagamento || 'dinheiro';
+    
     const result = await query(`
       INSERT INTO nfs_e_emitidas (
         paciente_id, usuario_id, numero_nfs_e, valor, 
-        discriminacao, observacoes, data_emissao, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        discriminacao, observacoes, data_emissao, status, forma_pagamento
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `, [
       paciente_id,
@@ -190,7 +251,8 @@ router.post('/emitir', async (req, res) => {
       discriminacaoServico, // Usar discriminacao (nome correto da coluna)
       observacoesFinal || null,
       new Date(),
-      'emitida' // Status padrão
+      'emitida', // Status padrão
+      formaPagamentoFinal
     ]);
     
     console.log('✅ NFS-e inserida com sucesso:', result.rows[0]);
@@ -222,11 +284,18 @@ router.get('/emitidas', async (req, res) => {
       queryParams.push(paciente_id);
     }
     
-    // Filtro de busca
-    if (search) {
+    // Filtro de busca - busca por nome do paciente, CPF (formatado ou não) ou número da NFS-e
+    if (search && search.trim() !== '') {
       paramIndex++;
-      whereClause += ` AND (p.nome ILIKE $${paramIndex} OR p.cpf ILIKE $${paramIndex} OR n.numero_nfs_e ILIKE $${paramIndex})`;
-      queryParams.push(`%${search}%`);
+      const searchTerm = `%${search.trim()}%`;
+      // Buscar por: nome do paciente, CPF (com formatação), CPF sem formatação, ou número da NFS-e
+      whereClause += ` AND (
+        p.nome ILIKE $${paramIndex} 
+        OR p.cpf ILIKE $${paramIndex} 
+        OR REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') ILIKE $${paramIndex}
+        OR n.numero_nfs_e ILIKE $${paramIndex}
+      )`;
+      queryParams.push(searchTerm);
     }
     
     // Filtros de data
@@ -274,12 +343,18 @@ router.get('/emitidas', async (req, res) => {
         queryParams.push(dataFim);
       }
     }
-
-    const offset = (page - 1) * limit;
+    
+    // Validar parâmetros numéricos
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const offsetNum = (pageNum - 1) * limitNum;
     
     const dataQuery = `
       SELECT 
-        n.*, 
+        n.*,
+        n.discriminacao as discriminacao_servico,
+        COALESCE(n.forma_pagamento, 'dinheiro') as forma_pagamento,
+        c.codigo_servico,
         p.nome as paciente_nome, 
         p.cpf as paciente_cpf,
         p.cep,
@@ -288,39 +363,60 @@ router.get('/emitidas', async (req, res) => {
         p.numero_endereco,
         p.email
       FROM nfs_e_emitidas n
-      JOIN pacientes p ON n.paciente_id = p.id
+      LEFT JOIN pacientes p ON n.paciente_id = p.id
+      LEFT JOIN configuracoes_nfs_e c ON n.usuario_id = c.usuario_id
       ${whereClause}
-      ORDER BY n.data_emissao DESC
+      ORDER BY n.data_emissao DESC NULLS LAST
       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
     `;
     
     const countQuery = `
       SELECT COUNT(*) 
       FROM nfs_e_emitidas n
+      LEFT JOIN pacientes p ON n.paciente_id = p.id
       ${whereClause}
     `;
+    
+    console.log('📊 Query executada:', {
+      whereClause,
+      queryParams: queryParams.map((p, i) => `$${i + 1}: ${typeof p === 'string' && p.length > 50 ? p.substring(0, 50) + '...' : p}`),
+      limit: limitNum,
+      offset: offsetNum
+    });
 
     const [dataResult, countResult] = await Promise.all([
-      query(dataQuery, [...queryParams, limit, offset]),
+      query(dataQuery, [...queryParams, limitNum, offsetNum]),
       query(countQuery, queryParams)
     ]);
 
-    const total = parseInt(countResult.rows[0].count);
-    const totalPages = Math.ceil(total / limit);
+    const total = parseInt(countResult.rows[0]?.count || '0');
+    const totalPages = Math.ceil(total / limitNum);
+
+    console.log('✅ Query executada com sucesso:', {
+      total,
+      totalPages,
+      registrosRetornados: dataResult.rows.length
+    });
 
     res.json({
-      data: dataResult.rows,
+      data: dataResult.rows || [],
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
         totalPages
       }
     });
 
   } catch (error) {
-    console.error('Erro ao listar NFS-e:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
+    console.error('❌ Erro ao listar NFS-e:', error);
+    console.error('❌ Stack:', error.stack);
+    console.error('❌ Query params:', { page, limit, date_filter, search, paciente_id });
+    res.status(500).json({ 
+      error: 'Erro interno do servidor',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

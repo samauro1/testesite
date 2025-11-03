@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { agendamentosService, pacientesService, detranService } from '@/services/api';
 import Layout from '@/components/Layout';
 import { useTheme } from '@/contexts/ThemeContext';
+import ComunicarResultadoButton from '@/components/ComunicarResultadoButton';
 
 // Tratamento de erros de extensões do Chrome (ignora erro comum de message channel)
 if (typeof window !== 'undefined') {
@@ -35,6 +36,10 @@ interface Agendamento {
   paciente_nome?: string;
   aptidao?: 'Apto' | 'Inapto' | 'Inapto Temporário' | null;
   ultima_aptidao?: 'Apto' | 'Inapto' | 'Inapto Temporário' | null;
+  ultima_avaliacao_id?: number;
+  paciente_telefone_celular?: string;
+  paciente_telefone_fixo?: string;
+  paciente_email?: string;
 }
 
 const AgendaPage: React.FC = () => {
@@ -625,19 +630,30 @@ const AgendaPage: React.FC = () => {
   };
 
   const getStatusBadge = (agendamento: Agendamento) => {
-    const badge = statusOptions.find(s => s.value === agendamento.status) || statusOptions[0];
+    // Se está "Apto", automaticamente deve ser "Realizado" (não pode estar "Pendente")
+    const statusFinal = (agendamento.ultima_aptidao === 'Apto' || agendamento.aptidao === 'Apto') 
+      ? 'realizado' 
+      : agendamento.status;
+    
+    const badge = statusOptions.find(s => s.value === statusFinal) || statusOptions[0];
     const Icon = badge.icon;
+    
+    // Se está Apto, não permitir alterar status (já está Realizado)
+    const podeAlterar = !(agendamento.ultima_aptidao === 'Apto' || agendamento.aptidao === 'Apto');
     
     return (
       <button
         onClick={(e) => {
           e.stopPropagation();
-          handleStatusChange(agendamento);
+          if (podeAlterar) {
+            handleStatusChange(agendamento);
+          }
         }}
+        disabled={!podeAlterar}
         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
           isDark ? badge.colorDark : badge.color
-        } hover:opacity-80 transition-opacity cursor-pointer`}
-        title="Click para alternar entre Pendente ↔ Realizado"
+        } ${podeAlterar ? 'hover:opacity-80 transition-opacity cursor-pointer' : 'cursor-default opacity-90'}`}
+        title={podeAlterar ? "Click para alternar entre Pendente ↔ Realizado" : "Apto - Status fixo como Realizado"}
       >
         <Icon className="w-3 h-3 mr-1" />
         {badge.label}
@@ -730,27 +746,27 @@ const AgendaPage: React.FC = () => {
                     setViewMode('calendar');
                     setSelectedDate(null);
                   }}
-                  className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
                     viewMode === 'calendar'
                       ? 'bg-blue-600 text-white'
                       : isDark ? 'bg-dark-700 text-dark-200 hover:bg-dark-600' : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                   title="Visão de Calendário"
                 >
-                  <Grid className="w-4 h-4" />
-                  <span className="hidden sm:inline">Calendário</span>
+                  <Grid className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-medium">Calendário</span>
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 flex items-center gap-2 transition-colors ${
+                  className={`px-4 py-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
                     viewMode === 'list'
                       ? 'bg-blue-600 text-white'
                       : isDark ? 'bg-dark-700 text-dark-200 hover:bg-dark-600' : 'bg-white text-gray-700 hover:bg-gray-50'
                   }`}
                   title="Visão de Lista"
                 >
-                  <List className="w-4 h-4" />
-                  <span className="hidden sm:inline">Lista</span>
+                  <List className="w-4 h-4 flex-shrink-0" />
+                  <span className="text-sm font-medium">Lista</span>
                 </button>
               </div>
 
@@ -1081,6 +1097,23 @@ const AgendaPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex justify-center items-center gap-2">
+                          {/* Botão de enviar resultado - adicionado na área de ações */}
+                          {agendamento.ultima_aptidao && agendamento.ultima_avaliacao_id && agendamento.paciente_id && (
+                            <ComunicarResultadoButton
+                              avaliacaoId={agendamento.ultima_avaliacao_id}
+                              aptidao={agendamento.ultima_aptidao}
+                              pacienteNome={agendamento.paciente_nome || agendamento.nome}
+                              pacienteEmail={agendamento.paciente_email || agendamento.email}
+                              pacienteTelefone={
+                                agendamento.paciente_telefone_celular || 
+                                agendamento.paciente_telefone_fixo || 
+                                agendamento.telefone || 
+                                ''
+                              }
+                              variant="list"
+                              className="text-xs"
+                            />
+                          )}
                           {/* Mostrar botão se não foi convertido OU se foi convertido mas paciente foi deletado (paciente_id = null) */}
                           {(!agendamento.convertido_em_paciente || !agendamento.paciente_id) && (
                             <button

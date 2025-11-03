@@ -860,10 +860,20 @@ export default function TestesPage() {
 
   // Função para salvar o teste
   const handleSaveTest = async (tabelaIdManual?: number) => {
+    console.log('🚀 ========== handleSaveTest CHAMADO ==========');
+    console.log('📋 selectedTest:', selectedTest?.id, selectedTest?.nome);
+    console.log('📋 tabelaIdManual:', tabelaIdManual);
+    console.log('📋 analysisType:', analysisType);
+    console.log('📋 foundPatient:', foundPatient);
+    console.log('📋 patientData:', patientData);
+    
     if (!selectedTest) {
+      console.error('❌ Nenhum teste selecionado!');
       toast.error('Nenhum teste selecionado');
       return;
     }
+    
+    console.log('✅ Teste selecionado, continuando...');
     
     // Fechar modal de seleção de tabela se estiver aberto
     if (showTabelaModal) {
@@ -880,12 +890,20 @@ export default function TestesPage() {
 
     // Validar se é vinculado e tem dados obrigatórios
     if (analysisType === 'linked') {
+      console.log('🔍 Validando dados obrigatórios para avaliação vinculada...');
+      console.log('   CPF:', patientData.cpf);
+      console.log('   Nome:', patientData.nome);
+      console.log('   Número Laudo:', patientData.numero_laudo);
+      
       if (!patientData.cpf || !patientData.nome || !patientData.numero_laudo) {
+        console.error('❌ Validação falhou - dados obrigatórios faltando!');
         toast.error('Preencha CPF, Nome e Número do Laudo para salvar avaliação vinculada');
         return;
       }
+      console.log('✅ Validação passou!');
     }
 
+    console.log('💾 Iniciando salvamento (setIsSaving(true))...');
     setIsSaving(true);
 
     try {
@@ -977,8 +995,27 @@ export default function TestesPage() {
       }
       
       // Enviar para calcular e salvar
+      console.log('📤 ========== ENVIANDO REQUISIÇÃO ==========');
+      console.log('📤 URL: /api/tabelas/' + selectedTest.id + '/calculate');
+      console.log('📤 Método: POST');
+      console.log('📤 Dados completos:', JSON.stringify(dataToSend, null, 2));
+      console.log('📤 Tipo de teste:', selectedTest.id);
+      console.log('📤 AnalysisType:', analysisType);
+      console.log('📤 Has foundPatient:', !!foundPatient);
+      console.log('📤 Has patientData:', !!patientData);
+      console.log('📤 Chamando tabelasService.calculate...');
+      
       const response = await tabelasService.calculate(selectedTest.id, dataToSend);
+      
+      console.log('📥 ========== RESPOSTA RECEBIDA ==========');
+      console.log('📥 Status:', response.status);
+      console.log('📥 Headers:', response.headers);
+      console.log('📥 Data completa:', response.data);
+      console.log('📥 Resposta recebida:', JSON.stringify(response.data, null, 2).substring(0, 1000));
       const resultado = response.data.resultado || response.data || {};
+      console.log('📊 Resultado extraído:', resultado);
+      console.log('📊 Resultado.salvo?', (resultado as any).salvo);
+      console.log('📊 AnalysisType:', analysisType);
       const tabelaUsada = response.data.tabela_usada;
       const tabelaId = response.data.tabela_id;
       const avisos = response.data.avisos || [];
@@ -1002,6 +1039,14 @@ export default function TestesPage() {
       };
       
       setResults(resultadoCompleto as TestResult);
+      
+      console.log('🔍 Verificando se teste foi salvo:');
+      console.log('   analysisType:', analysisType);
+      console.log('   resultado.salvo:', (resultado as any).salvo);
+      console.log('   Condição linked:', analysisType === 'linked');
+      console.log('   Condição anonymous:', analysisType === 'anonymous');
+      console.log('   Condição salvo:', (resultado as any).salvo);
+      console.log('   Resultado FINAL:', (analysisType === 'linked' || analysisType === 'anonymous') && (resultado as any).salvo);
       
       if ((analysisType === 'linked' || analysisType === 'anonymous') && (resultado as any).salvo) {
         if (analysisType === 'anonymous') {
@@ -1059,7 +1104,11 @@ export default function TestesPage() {
       await queryClient.refetchQueries({ queryKey: ['avaliacoes-count'] });
       
     } catch (error: any) {
-      console.error('Erro ao salvar teste:', error);
+      console.error('❌ ERRO ao salvar teste:', error);
+      console.error('❌ Erro completo:', JSON.stringify(error, null, 2));
+      console.error('❌ Response:', error.response);
+      console.error('❌ Status:', error.response?.status);
+      console.error('❌ Data:', error.response?.data);
       toast.error(error.response?.data?.error || 'Erro ao salvar teste');
     } finally {
       setIsSaving(false);

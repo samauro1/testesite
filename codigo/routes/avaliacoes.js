@@ -306,13 +306,27 @@ router.get('/:id/testes', async (req, res) => {
     // Memore - retornar TODOS os resultados ordenados por data de criação
     try {
       console.log('🔍 Buscando MEMORE...');
+      // Verificar se a coluna tabela_normativa_id existe antes de fazer JOIN
       const memoreResult = await query(`
-        SELECT m.*, t.nome as tabela_normativa_nome
+        SELECT m.*
         FROM resultados_memore m
-        LEFT JOIN tabelas_normativas t ON m.tabela_normativa_id = t.id
         WHERE m.avaliacao_id = $1
         ORDER BY m.created_at DESC
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of memoreResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       console.log(`📊 MEMORE encontrados: ${memoreResult.rows.length}`);
       
@@ -337,11 +351,24 @@ router.get('/:id/testes', async (req, res) => {
     // AC
     try {
       const acResult = await query(`
-        SELECT a.*, t.nome as tabela_normativa_nome
+        SELECT a.*
         FROM resultados_ac a
-        LEFT JOIN tabelas_normativas t ON a.tabela_normativa_id = t.id
         WHERE a.avaliacao_id = $1
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of acResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       if (acResult.rows.length > 0) {
         testes.push({
@@ -359,11 +386,24 @@ router.get('/:id/testes', async (req, res) => {
     // BETA-III
     try {
       const betaResult = await query(`
-        SELECT b.*, t.nome as tabela_normativa_nome
+        SELECT b.*
         FROM resultados_beta_iii b
-        LEFT JOIN tabelas_normativas t ON b.tabela_normativa_id = t.id
         WHERE b.avaliacao_id = $1
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of betaResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       if (betaResult.rows.length > 0) {
         testes.push({
@@ -406,12 +446,25 @@ router.get('/:id/testes', async (req, res) => {
     try {
       console.log('🔍 Buscando ROTAS...');
       const rotasResult = await query(`
-        SELECT r.*, t.nome as tabela_normativa_nome
+        SELECT r.*
         FROM resultados_rotas r
-        LEFT JOIN tabelas_normativas t ON r.tabela_normativa_id = t.id
         WHERE r.avaliacao_id = $1 
         ORDER BY r.created_at DESC, r.rota_tipo
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of rotasResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       console.log(`📊 ROTAS encontradas: ${rotasResult.rows.length}`);
       
@@ -436,12 +489,25 @@ router.get('/:id/testes', async (req, res) => {
     try {
       console.log('🔍 Buscando MIG...');
       const migResult = await query(`
-        SELECT m.*, t.nome as tabela_normativa_nome
+        SELECT m.*
         FROM resultados_mig m
-        LEFT JOIN tabelas_normativas t ON m.tabela_normativa_id = t.id
         WHERE m.avaliacao_id = $1
         ORDER BY m.created_at DESC
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of migResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       console.log(`📊 MIG encontrados: ${migResult.rows.length}`);
       
@@ -466,12 +532,25 @@ router.get('/:id/testes', async (req, res) => {
     // MVT - retornar TODOS os resultados ordenados por data de criação
     try {
       const mvtResult = await query(`
-        SELECT m.*, t.nome as tabela_normativa_nome
+        SELECT m.*
         FROM resultados_mvt m
-        LEFT JOIN tabelas_normativas t ON m.tabela_normativa_id = t.id
         WHERE m.avaliacao_id = $1
         ORDER BY m.created_at DESC
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of mvtResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       if (mvtResult.rows.length > 0) {
         // Agrupar todos os resultados de MVT
@@ -493,12 +572,25 @@ router.get('/:id/testes', async (req, res) => {
     // R-1 - retornar TODOS os resultados ordenados por data de criação
     try {
       const r1Result = await query(`
-        SELECT r.*, t.nome as tabela_normativa_nome
+        SELECT r.*
         FROM resultados_r1 r
-        LEFT JOIN tabelas_normativas t ON r.tabela_normativa_id = t.id
         WHERE r.avaliacao_id = $1
         ORDER BY r.created_at DESC
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of r1Result.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       if (r1Result.rows.length > 0) {
         // Agrupar todos os resultados de R-1
@@ -520,12 +612,25 @@ router.get('/:id/testes', async (req, res) => {
     // Palográfico - retornar TODOS os resultados ordenados por data de criação
     try {
       const palograficoResult = await query(`
-        SELECT p.*, t.nome as tabela_normativa_nome
+        SELECT p.*
         FROM resultados_palografico p
-        LEFT JOIN tabelas_normativas t ON p.tabela_normativa_id = t.id
         WHERE p.avaliacao_id = $1
         ORDER BY p.created_at DESC
       `, [id]);
+      
+      // Tentar buscar nome da tabela normativa se a coluna existir
+      for (let resultado of palograficoResult.rows) {
+        if (resultado.tabela_normativa_id) {
+          try {
+            const tabelaResult = await query('SELECT nome FROM tabelas_normativas WHERE id = $1', [resultado.tabela_normativa_id]);
+            resultado.tabela_normativa_nome = tabelaResult.rows[0]?.nome || null;
+          } catch (err) {
+            resultado.tabela_normativa_nome = null;
+          }
+        } else {
+          resultado.tabela_normativa_nome = null;
+        }
+      }
       
       if (palograficoResult.rows.length > 0) {
         // Agrupar todos os resultados de Palográfico
@@ -593,12 +698,38 @@ router.post('/:id/enviar-mensagem', async (req, res) => {
       });
     }
 
-    // Verificar se já foi enviada uma mensagem
-    const wasSent = await MessageService.wasMessageSent(id);
-    if (wasSent) {
+    // Verificar se há avaliação mais recente para este paciente
+    const pacienteId = avaliacao.rows[0].paciente_id;
+    const dataAplicacao = avaliacao.rows[0].data_aplicacao;
+    
+    const avaliacaoMaisRecente = await query(
+      `SELECT id, data_aplicacao, aptidao 
+       FROM avaliacoes 
+       WHERE paciente_id = $1 
+         AND aptidao IS NOT NULL 
+         AND (data_aplicacao > $2 OR (data_aplicacao = $2 AND id > $3))
+       ORDER BY data_aplicacao DESC, id DESC
+       LIMIT 1`,
+      [pacienteId, dataAplicacao, id]
+    );
+    
+    // Se há avaliação mais recente, não permitir envio desta (deve enviar a mais recente)
+    if (avaliacaoMaisRecente.rows.length > 0) {
+      return res.status(400).json({
+        error: `Existe uma avaliação mais recente (ID ${avaliacaoMaisRecente.rows[0].id}). Envie o resultado da avaliação mais recente.`,
+        avaliacaoMaisRecente: true,
+        avaliacaoMaisRecenteId: avaliacaoMaisRecente.rows[0].id
+      });
+    }
+    
+    // Verificar se já foi enviada uma mensagem para esta avaliação
+    const statusEnvio = await MessageService.wasMessageSent(id);
+    if (statusEnvio.enviado) {
       return res.status(400).json({
         error: 'Mensagem já foi enviada para esta avaliação',
-        alreadySent: true
+        alreadySent: true,
+        data_envio: statusEnvio.data_envio,
+        metodo_envio: statusEnvio.metodo_envio
       });
     }
 
@@ -623,10 +754,49 @@ router.get('/:id/status-mensagem', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const wasSent = await MessageService.wasMessageSent(id);
+    // Buscar avaliação para verificar se é a mais recente
+    const avaliacao = await query(
+      'SELECT id, paciente_id, data_aplicacao, aptidao FROM avaliacoes WHERE id = $1',
+      [id]
+    );
+    
+    if (avaliacao.rows.length === 0) {
+      return res.status(404).json({ error: 'Avaliação não encontrada' });
+    }
+    
+    const aval = avaliacao.rows[0];
+    
+    // Verificar se há avaliação mais recente para este paciente com aptidão
+    const avaliacaoMaisRecente = await query(
+      `SELECT id, data_aplicacao, aptidao 
+       FROM avaliacoes 
+       WHERE paciente_id = $1 
+         AND aptidao IS NOT NULL 
+         AND (data_aplicacao > $2 OR (data_aplicacao = $2 AND id > $3))
+       ORDER BY data_aplicacao DESC, id DESC
+       LIMIT 1`,
+      [aval.paciente_id, aval.data_aplicacao, aval.id]
+    );
+    
+    // Se há avaliação mais recente, o status deve ser resetado (não enviado ainda)
+    if (avaliacaoMaisRecente.rows.length > 0) {
+      return res.json({
+        messageSent: false,
+        data_envio: null,
+        metodo_envio: null,
+        avaliacaoMaisRecente: true,
+        avaliacaoMaisRecenteId: avaliacaoMaisRecente.rows[0].id
+      });
+    }
+    
+    // Buscar status de envio
+    const statusEnvio = await MessageService.wasMessageSent(id);
     
     res.json({
-      messageSent: wasSent
+      messageSent: statusEnvio.enviado,
+      data_envio: statusEnvio.data_envio,
+      metodo_envio: statusEnvio.metodo_envio,
+      avaliacaoMaisRecente: false
     });
 
   } catch (error) {

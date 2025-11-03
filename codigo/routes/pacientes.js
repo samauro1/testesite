@@ -74,6 +74,13 @@ router.get('/', async (req, res) => {
           LIMIT 1
         ) as ultima_aptidao,
         (
+          SELECT id 
+          FROM avaliacoes 
+          WHERE paciente_id = p.id AND aptidao IS NOT NULL
+          ORDER BY data_aplicacao DESC, created_at DESC 
+          LIMIT 1
+        ) as ultima_avaliacao_id,
+        (
           SELECT data_agendamento 
           FROM agendamentos 
           WHERE paciente_id = p.id 
@@ -117,6 +124,18 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validar ID
+    if (!id || isNaN(parseInt(id))) {
+      console.error('❌ ID inválido recebido:', id);
+      return res.status(400).json({
+        error: 'ID de paciente inválido',
+        details: `O ID "${id}" não é um número válido`
+      });
+    }
+
+    const pacienteId = parseInt(id);
+    console.log('🔍 Buscando paciente ID:', pacienteId, '| Usuário:', req.user?.id, '| Admin:', isAdmin(req.user));
+
     // Montar query com filtro de usuário se não for admin
     let queryText = `SELECT id, nome, cpf, idade, data_nascimento, numero_laudo, contexto, tipo_transito, escolaridade, 
                      telefone, telefone_fixo, telefone_celular, email, endereco, observacoes, 
@@ -127,14 +146,18 @@ router.get('/:id', async (req, res) => {
                      crp_renach, credenciado_renach, regiao_renach,
                      logradouro, numero_endereco, bairro, cep, municipio
                      FROM pacientes WHERE id = $1`;
-    let queryParams = [id];
+    let queryParams = [pacienteId];
 
     if (!isAdmin(req.user)) {
       queryText += ' AND usuario_id = $2';
       queryParams.push(req.user.id);
     }
 
+    console.log('📊 Query:', queryText, '| Params:', queryParams);
+
     const result = await query(queryText, queryParams);
+
+    console.log('📦 Resultado da query:', result.rows.length, 'registros encontrados');
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -146,9 +169,11 @@ router.get('/:id', async (req, res) => {
       data: result.rows[0]
     });
   } catch (error) {
-    console.error('Erro ao buscar paciente:', error);
+    console.error('❌ Erro ao buscar paciente:', error);
+    console.error('❌ Stack:', error.stack);
     res.status(500).json({
-      error: 'Erro interno do servidor'
+      error: 'Erro interno do servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

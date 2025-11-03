@@ -280,6 +280,10 @@ router.get('/:tipo', async (req, res) => {
 
 // Calcular resultado baseado nas normas
 router.post('/:tipo/calculate', async (req, res) => {
+  console.log('\n🚀 ========== REQUISIÇÃO RECEBIDA: POST /api/tabelas/:tipo/calculate ==========');
+  console.log('📥 Tipo de teste:', req.params.tipo);
+  console.log('📥 Body recebido:', JSON.stringify(req.body, null, 2).substring(0, 1000));
+  console.log('📥 User ID:', req.user?.id);
   try {
     const { tipo } = req.params;
     const dados = req.body;
@@ -383,6 +387,11 @@ router.post('/:tipo/calculate', async (req, res) => {
     console.log('   foundPatient completo:', JSON.stringify(dados.patientData?.foundPatient || null, null, 2));
     console.log('   numero_laudo:', dados.patientData?.numero_laudo);
     console.log('   data_avaliacao:', dados.patientData?.data_avaliacao);
+    console.log('   analysisType:', dados.analysisType);
+    console.log('   tem patientData:', !!dados.patientData);
+    console.log('   tem foundPatient:', !!(dados.patientData?.foundPatient));
+    console.log('   foundPatient ID:', dados.patientData?.foundPatient?.id);
+    console.log('   patientData completo:', JSON.stringify(dados.patientData, null, 2));
     
     if (dados.analysisType === 'linked' && dados.patientData && dados.patientData.foundPatient) {
       try {
@@ -418,6 +427,7 @@ router.post('/:tipo/calculate', async (req, res) => {
         resultado.avaliacao_id = avaliacao.id;
         resultado.salvo = true;
         console.log(`✅ Resultado do teste ${tipo} salvo na avaliação ${avaliacao.id}`);
+        console.log(`✅ FLAG salvo = true adicionada ao resultado`);
       } catch (error) {
         console.error('❌ Erro ao salvar resultado vinculado:', error);
         console.error('❌ Stack trace:', error.stack);
@@ -427,8 +437,22 @@ router.post('/:tipo/calculate', async (req, res) => {
           numeroLaudo: dados.patientData?.numero_laudo,
           usuarioId: req.user?.id
         });
-        // Continua retornando o resultado mesmo se não conseguir salvar
+        // NÃO continuar - retornar erro para o frontend saber que falhou
+        return res.status(500).json({
+          error: 'Erro ao salvar teste no banco de dados',
+          message: error.message,
+          resultado: resultado, // Retornar resultado calculado mesmo com erro
+          salvo: false
+        });
       }
+    } else if (dados.analysisType === 'linked') {
+      // Se analysisType é 'linked' mas não tem foundPatient, registrar erro detalhado
+      console.error('❌ ERRO CRÍTICO: analysisType é "linked" mas não há foundPatient!');
+      console.error('   analysisType:', dados.analysisType);
+      console.error('   tem patientData:', !!dados.patientData);
+      console.error('   tem foundPatient:', !!(dados.patientData?.foundPatient));
+      console.error('   patientData keys:', dados.patientData ? Object.keys(dados.patientData) : 'null');
+      console.error('   patientData completo:', JSON.stringify(dados.patientData, null, 2));
     } else if (dados.analysisType === 'anonymous') {
       try {
         console.log('🕶️ Salvando resultado anônimo...');
@@ -493,9 +517,15 @@ router.post('/:tipo/calculate', async (req, res) => {
       avisos: avisos
     });
   } catch (error) {
-    console.error('Erro ao calcular resultado:', error);
+    console.error('❌❌❌ ERRO CRÍTICO ao calcular resultado:', error);
+    console.error('❌ Stack completo:', error.stack);
+    console.error('❌ Message:', error.message);
+    console.error('❌ Tipo:', typeof error);
+    console.error('❌ Nome:', error.name);
     res.status(500).json({
-      error: 'Erro interno do servidor'
+      error: 'Erro interno do servidor',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -596,6 +626,21 @@ async function criarOuBuscarAvaliacao(paciente, usuarioId, dataAvaliacao, numero
   return novaAvaliacao.rows[0];
 }
 
+// Função auxiliar para inserir com fallback se coluna não existir
+async function insertComFallback(queryTextComColuna, paramsComColuna, queryTextSemColuna, paramsSemColuna, nomeColuna = 'tabela_normativa_id') {
+  try {
+    await query(queryTextComColuna, paramsComColuna);
+  } catch (error) {
+    // Se der erro por coluna não existir, tentar sem a coluna
+    if (error.code === '42703' && error.message.includes(nomeColuna)) {
+      console.log(`⚠️ Coluna ${nomeColuna} não existe, inserindo sem ela...`);
+      await query(queryTextSemColuna, paramsSemColuna);
+    } else {
+      throw error; // Re-lançar se for outro erro
+    }
+  }
+}
+
 async function salvarResultadoTeste(tipo, avaliacaoId, dados, resultado, descontarEstoque = true, usuarioId = null, tabelaNormativaId = null) {
   console.log('💾 salvarResultadoTeste - tabelaNormativaId:', tabelaNormativaId);
   
@@ -612,36 +657,23 @@ async function salvarResultadoTeste(tipo, avaliacaoId, dados, resultado, descont
       // Deletar resultado anterior se existir (evitar duplicados)
       await query('DELETE FROM resultados_mig WHERE avaliacao_id = $1', [avaliacaoId]);
       
-      await query(`
-        INSERT INTO resultados_mig (avaliacao_id, tipo_avaliacao, acertos, percentil, classificacao, tabela_normativa_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [
-        avaliacaoId,
-        'geral', // tipo_avaliacao obrigatório
-        dados.acertos,
-        resultado.percentil,
-        resultado.classificacao,
-        tabelaNormativaId
-      ]);
+      await insertComFallback(
+        `INSERT INTO resultados_mig (avaliacao_id, tipo_avaliacao, acertos, percentil, classificacao, tabela_normativa_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [avaliacaoId, 'geral', dados.acertos, resultado.percentil, resultado.classificacao, tabelaNormativaId],
+        `INSERT INTO resultados_mig (avaliacao_id, tipo_avaliacao, acertos, percentil, classificacao) VALUES ($1, $2, $3, $4, $5)`,
+        [avaliacaoId, 'geral', dados.acertos, resultado.percentil, resultado.classificacao]
+      );
       break;
     case 'memore':
       // Deletar resultado anterior se existir (evitar duplicados)
       await query('DELETE FROM resultados_memore WHERE avaliacao_id = $1', [avaliacaoId]);
       
-      await query(`
-        INSERT INTO resultados_memore (avaliacao_id, vp, vn, fn, fp, resultado_final, percentil, classificacao, tabela_normativa_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `, [
-        avaliacaoId,
-        dados.vp,
-        dados.vn,
-        dados.fn,
-        dados.fp,
-        resultado.resultado_final || 0,
-        resultado.percentil,
-        resultado.classificacao,
-        tabelaNormativaId
-      ]);
+      await insertComFallback(
+        `INSERT INTO resultados_memore (avaliacao_id, vp, vn, fn, fp, resultado_final, percentil, classificacao, tabela_normativa_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [avaliacaoId, dados.vp, dados.vn, dados.fn, dados.fp, resultado.resultadoFinal || resultado.resultado_final || 0, resultado.percentil, resultado.classificacao, tabelaNormativaId],
+        `INSERT INTO resultados_memore (avaliacao_id, vp, vn, fn, fp, resultado_final, percentil, classificacao) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [avaliacaoId, dados.vp, dados.vn, dados.fn, dados.fp, resultado.resultadoFinal || resultado.resultado_final || 0, resultado.percentil, resultado.classificacao]
+      );
       break;
     case 'ac':
       console.log('💾 Salvando AC:', {
@@ -657,19 +689,12 @@ async function salvarResultadoTeste(tipo, avaliacaoId, dados, resultado, descont
       // Deletar resultado anterior se existir (evitar duplicados)
       await query('DELETE FROM resultados_ac WHERE avaliacao_id = $1', [avaliacaoId]);
       
-      await query(`
-        INSERT INTO resultados_ac (avaliacao_id, acertos, erros, omissoes, pb, percentil, classificacao, tabela_normativa_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [
-        avaliacaoId,
-        dados.acertos,
-        dados.erros,
-        dados.omissoes,
-        resultado.pb,
-        resultado.percentil,
-        resultado.classificacao,
-        tabelaNormativaId
-      ]);
+      await insertComFallback(
+        `INSERT INTO resultados_ac (avaliacao_id, acertos, erros, omissoes, pb, percentil, classificacao, tabela_normativa_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [avaliacaoId, dados.acertos, dados.erros, dados.omissoes, resultado.pb, resultado.percentil, resultado.classificacao, tabelaNormativaId],
+        `INSERT INTO resultados_ac (avaliacao_id, acertos, erros, omissoes, pb, percentil, classificacao) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [avaliacaoId, dados.acertos, dados.erros, dados.omissoes, resultado.pb, resultado.percentil, resultado.classificacao]
+      );
       break;
     case 'beta-iii':
       console.log('💾 Salvando BETA-III:', {
@@ -800,20 +825,12 @@ async function salvarResultadoTeste(tipo, avaliacaoId, dados, resultado, descont
 
         console.log(`   💾 Salvando Rota ${tipoRotaKey.toUpperCase()}:`, dadosRota);
         
-        await query(`
-          INSERT INTO resultados_rotas (avaliacao_id, rota_tipo, acertos, erros, omissoes, pb, percentil, classificacao, tabela_normativa_id)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [
-          avaliacaoId,
-          tipoRotaKey.toUpperCase(), // Usar a chave como tipo de rota
-          dadosRota.acertos,
-          dadosRota.erros,
-          dadosRota.omissoes,
-          dadosRota.pb,
-          dadosRota.percentil,
-          dadosRota.classificacao,
-          tabelaNormativaId
-        ]);
+        await insertComFallback(
+          `INSERT INTO resultados_rotas (avaliacao_id, rota_tipo, acertos, erros, omissoes, pb, percentil, classificacao, tabela_normativa_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [avaliacaoId, tipoRotaKey.toUpperCase(), dadosRota.acertos, dadosRota.erros, dadosRota.omissoes, dadosRota.pb, dadosRota.percentil, dadosRota.classificacao, tabelaNormativaId],
+          `INSERT INTO resultados_rotas (avaliacao_id, rota_tipo, acertos, erros, omissoes, pb, percentil, classificacao) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [avaliacaoId, tipoRotaKey.toUpperCase(), dadosRota.acertos, dadosRota.erros, dadosRota.omissoes, dadosRota.pb, dadosRota.percentil, dadosRota.classificacao]
+        );
         
         console.log(`   ✅ Rota ${tipoRotaKey.toUpperCase()} salva!`);
       }
@@ -830,16 +847,12 @@ async function salvarResultadoTeste(tipo, avaliacaoId, dados, resultado, descont
       // Deletar resultado anterior se existir (evitar duplicados)
       await query('DELETE FROM resultados_r1 WHERE avaliacao_id = $1', [avaliacaoId]);
       
-      await query(`
-        INSERT INTO resultados_r1 (avaliacao_id, acertos, percentil, classificacao, tabela_normativa_id)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [
-        avaliacaoId,
-        dados.acertos,
-        resultado.percentil,
-        resultado.classificacao,
-        tabelaNormativaId
-      ]);
+      await insertComFallback(
+        `INSERT INTO resultados_r1 (avaliacao_id, acertos, percentil, classificacao, tabela_normativa_id) VALUES ($1, $2, $3, $4, $5)`,
+        [avaliacaoId, dados.acertos, resultado.percentil, resultado.classificacao, tabelaNormativaId],
+        `INSERT INTO resultados_r1 (avaliacao_id, acertos, percentil, classificacao) VALUES ($1, $2, $3, $4)`,
+        [avaliacaoId, dados.acertos, resultado.percentil, resultado.classificacao]
+      );
       break;
     case 'mvt':
       console.log('💾 Salvando MVT:', {

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Send, CheckCircle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Send, CheckCircle, MessageSquare, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNotification } from '@/contexts/NotificationContext';
 import axios from 'axios';
+import { avaliacoesService } from '@/services/api';
 
 interface ComunicarResultadoButtonProps {
   avaliacaoId: number;
@@ -27,9 +28,57 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [messageSent, setMessageSent] = useState(false);
+  const [dataEnvio, setDataEnvio] = useState<string | null>(null);
   const { getDefaultMethod } = useNotification();
 
+  // Verificar status de envio ao carregar
+  useEffect(() => {
+    const verificarStatusEnvio = async () => {
+      // Validar avaliacaoId antes de fazer a chamada
+      if (!avaliacaoId || avaliacaoId === 0 || isNaN(avaliacaoId)) {
+        return;
+      }
+      
+      try {
+        const response = await avaliacoesService.getStatusMensagem(avaliacaoId.toString());
+        
+        // A resposta pode vir em diferentes formatos
+        let status = null;
+        if (response?.data?.data) {
+          status = response.data.data;
+        } else if (response?.data) {
+          status = response.data;
+        }
+        
+        if (status && typeof status === 'object' && 'messageSent' in status) {
+          if (status.messageSent && !status.avaliacaoMaisRecente) {
+            setMessageSent(true);
+            setDataEnvio(status.data_envio || null);
+          } else {
+            // Se há avaliação mais recente, resetar status
+            setMessageSent(false);
+            setDataEnvio(null);
+          }
+        }
+      } catch (error: any) {
+        // Ignorar erros 404 (avaliação não encontrada)
+        if (error?.response?.status !== 404) {
+          console.error('Erro ao verificar status de envio:', error);
+        }
+        // Em caso de erro, não alterar estado
+      }
+    };
+
+    verificarStatusEnvio();
+  }, [avaliacaoId]);
+
   const handleSendResult = async () => {
+    // Validar avaliacaoId antes de tentar enviar
+    if (!avaliacaoId || avaliacaoId === 0 || isNaN(avaliacaoId)) {
+      toast.error('Avaliação inválida. Por favor, recarregue a página.');
+      return;
+    }
+
     if (!aptidao || aptidao.trim() === '') {
       toast.error('Aptidão não foi definida para esta avaliação');
       return;
@@ -87,7 +136,7 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
         const dataReavaliacaoCalculada = new Date(hoje);
         dataReavaliacaoCalculada.setDate(hoje.getDate() + 30);
         dataReavaliacao = dataReavaliacaoCalculada.toLocaleDateString('pt-BR');
-        console.log('🔍 Data de reavaliação calculada:', dataReavaliacao);
+        console.log('🔍 Data de reavaliacao calculada:', dataReavaliacao);
       }
       
       // Calcular data limite para "Inapto" (30 dias a partir de hoje)
@@ -109,7 +158,7 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
       
       console.log('🔍 Mensagem final:', personalizedMessage);
 
-      // 4. Se for WhatsApp, abrir com mensagem pré-carregada
+      // 4. Se for WhatsApp, abrir com mensagem pré-carregada e registrar envio
       if (defaultMethod === 'whatsapp') {
         const cleanPhone = pacienteTelefone?.replace(/\D/g, '') || '';
         const whatsappNumber = cleanPhone.length === 11 ? `55${cleanPhone}` : `5511${cleanPhone}`;
@@ -119,8 +168,41 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
         // Abrir WhatsApp em nova aba com mensagem pré-carregada
         window.open(whatsappUrl, '_blank');
         
-        // Marcar como enviado
-        setMessageSent(true);
+        // Registrar envio na API
+        try {
+          const envioResponse = await fetch(`http://localhost:3001/api/avaliacoes/${avaliacaoId}/enviar-mensagem`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ 
+              preferencia: 'whatsapp',
+              avaliacaoId,
+              mensagem: personalizedMessage
+            })
+          });
+
+          if (envioResponse.ok) {
+            // Buscar status atualizado
+            try {
+              const statusResponse = await avaliacoesService.getStatusMensagem(avaliacaoId.toString());
+              const status = statusResponse.data?.data || statusResponse.data;
+              setMessageSent(true);
+              setDataEnvio(status?.data_envio || new Date().toISOString());
+            } catch (statusError) {
+              // Se falhar ao buscar status, usar data atual
+              setMessageSent(true);
+              setDataEnvio(new Date().toISOString());
+            }
+          }
+        } catch (envioError) {
+          console.error('Erro ao registrar envio:', envioError);
+          // Mesmo com erro, marcar como enviado visualmente
+          setMessageSent(true);
+          setDataEnvio(new Date().toISOString());
+        }
+        
         toast.success('WhatsApp aberto com mensagem pré-carregada!');
         
         if (onMessageSent) {
@@ -146,7 +228,17 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
       const data = await response.json();
 
       if (response.ok) {
-        setMessageSent(true);
+        // Buscar status atualizado
+        try {
+          const statusResponse = await avaliacoesService.getStatusMensagem(avaliacaoId.toString());
+          const status = statusResponse.data?.data || statusResponse.data;
+          setMessageSent(true);
+          setDataEnvio(status?.data_envio || new Date().toISOString());
+        } catch (statusError) {
+          // Se falhar ao buscar status, usar data atual
+          setMessageSent(true);
+          setDataEnvio(new Date().toISOString());
+        }
         toast.success(`Resultado enviado por ${defaultMethod === 'whatsapp' ? 'WhatsApp' : 'Email'}!`);
         if (onMessageSent) {
           onMessageSent();
@@ -154,6 +246,7 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
       } else {
         if (data.alreadySent) {
           setMessageSent(true);
+          setDataEnvio(data.data_envio || new Date().toISOString());
           toast.success('Resultado já foi enviado para esta avaliação');
         } else {
           toast.error(data.error || 'Erro ao enviar resultado');
@@ -167,9 +260,31 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
     }
   };
 
+  const formatarDataHora = (dataISO: string | null) => {
+    if (!dataISO) return '';
+    
+    try {
+      const data = new Date(dataISO);
+      const dataFormatada = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const horaFormatada = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `${dataFormatada} ${horaFormatada}`;
+    } catch (error) {
+      return '';
+    }
+  };
+
   const getButtonContent = () => {
     if (messageSent) {
-      return <CheckCircle className="h-3.5 w-3.5" />;
+      return (
+        <div className="flex flex-col items-center justify-center">
+          <CheckCircle className="h-3.5 w-3.5" />
+          {dataEnvio && variant === 'list' && (
+            <span className="text-[8px] leading-tight mt-0.5 text-white/90">
+              {formatarDataHora(dataEnvio)}
+            </span>
+          )}
+        </div>
+      );
     }
 
     if (isLoading) {
@@ -180,7 +295,7 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
   };
 
   const getButtonClass = () => {
-    const baseClass = "p-1.5 rounded transition-all";
+    const baseClass = variant === 'list' ? "p-1 rounded transition-all" : "p-1.5 rounded transition-all";
     
     if (messageSent) {
       return `${baseClass} bg-green-600 text-white cursor-default`;
@@ -193,38 +308,72 @@ const ComunicarResultadoButton: React.FC<ComunicarResultadoButtonProps> = ({
     return `${baseClass} bg-blue-600 text-white hover:bg-blue-700`;
   };
 
+  // Verificar se tem contato disponível
+  const defaultMethod = getDefaultMethod();
+  
+  // Para WhatsApp, aceitar qualquer telefone (celular ou fixo pode funcionar em alguns casos)
+  // Para Email, precisa de email
+  const hasContact = (defaultMethod === 'whatsapp' && pacienteTelefone && pacienteTelefone.trim() !== '') || 
+                    (defaultMethod === 'email' && pacienteEmail && pacienteEmail.trim() !== '');
+
   const getTooltip = () => {
+    if (messageSent && dataEnvio) {
+      return `Resultado enviado em ${formatarDataHora(dataEnvio)}`;
+    }
     if (messageSent) {
       return "Resultado Enviado";
     }
     
-    const defaultMethod = getDefaultMethod();
     return `Enviar Resultado por ${defaultMethod === 'whatsapp' ? 'WhatsApp' : 'Email'} (com mensagem personalizada)`;
   };
 
-  // Verificar se tem contato disponível
-  const defaultMethod = getDefaultMethod();
-  const hasContact = (defaultMethod === 'whatsapp' && pacienteTelefone) || 
-                    (defaultMethod === 'email' && pacienteEmail);
+  // SEMPRE mostrar botão se houver aptidão, mesmo sem contato
+  // Se não tiver contato, o botão mostrará mensagem ao clicar
+  if (!aptidao || aptidao.trim() === '') {
+    return null; // Não mostrar se não houver aptidão
+  }
 
+  // Se não tem contato, mostrar botão mas desabilitado com tooltip informativo
   if (!hasContact) {
+    const tooltipText = defaultMethod === 'whatsapp' 
+      ? 'Adicione um telefone ao paciente para enviar por WhatsApp'
+      : 'Adicione um email ao paciente para enviar por Email';
+    
     return (
-      <div className="flex items-center gap-1 text-gray-500 text-xs">
-        <AlertCircle className="h-3.5 w-3.5" />
-        <span>Sem contato</span>
-      </div>
+      <button
+        onClick={() => {
+          toast.error(tooltipText);
+        }}
+        disabled={true}
+        className={`${getButtonClass()} opacity-50 cursor-not-allowed ${className}`}
+        title={tooltipText}
+      >
+        {defaultMethod === 'whatsapp' ? (
+          <MessageSquare className="h-3.5 w-3.5" />
+        ) : (
+          <Mail className="h-3.5 w-3.5" />
+        )}
+      </button>
     );
   }
 
   return (
-    <button
-      onClick={handleSendResult}
-      disabled={messageSent || isLoading || !aptidao}
-      className={`${getButtonClass()} ${className}`}
-      title={getTooltip()}
-    >
-      {getButtonContent()}
-    </button>
+    <div className="flex flex-col items-center">
+      <button
+        onClick={handleSendResult}
+        disabled={messageSent || isLoading || !aptidao}
+        className={`${getButtonClass()} ${className}`}
+        title={getTooltip()}
+      >
+        {getButtonContent()}
+      </button>
+      {/* Mostrar data/hora abaixo do botão para variants que não sejam 'list' */}
+      {messageSent && dataEnvio && variant !== 'list' && (
+        <span className="text-[9px] text-gray-600 mt-0.5 whitespace-nowrap">
+          {formatarDataHora(dataEnvio)}
+        </span>
+      )}
+    </div>
   );
 };
 

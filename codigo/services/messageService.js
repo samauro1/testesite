@@ -6,30 +6,70 @@ const { generateMessage, sendEmail, sendWhatsAppMessage } = require('../utils/me
  */
 
 /**
- * Verifica se já foi enviada uma mensagem para uma avaliação
+ * Verifica se já foi enviada uma mensagem para uma avaliação e retorna dados do envio
  * @param {number} avaliacaoId - ID da avaliação
- * @returns {Promise<boolean>}
+ * @returns {Promise<Object>} { enviado: boolean, data_envio: string, metodo_envio: string }
  */
 async function wasMessageSent(avaliacaoId) {
   try {
-    // Verificar se existe registro de mensagem enviada
-    // Você pode criar uma tabela 'mensagens_enviadas' no banco para rastrear
-    // Por enquanto, vamos verificar se há algum log ou registro
-    
+    // Verificar se existe registro de mensagem enviada na tabela mensagens_enviadas
     const result = await query(
-      `SELECT EXISTS(
-        SELECT 1 FROM logs_sistema 
-        WHERE tipo = 'mensagem_enviada' 
-        AND descricao LIKE $1
-      ) as existe`,
-      [`%avaliacao_id:${avaliacaoId}%`]
+      `SELECT data_envio, metodo_envio, aptidao
+       FROM mensagens_enviadas 
+       WHERE avaliacao_id = $1
+       ORDER BY data_envio DESC
+       LIMIT 1`,
+      [avaliacaoId]
     );
     
-    return result.rows[0]?.existe || false;
+    if (result.rows.length > 0) {
+      return {
+        enviado: true,
+        data_envio: result.rows[0].data_envio,
+        metodo_envio: result.rows[0].metodo_envio,
+        aptidao: result.rows[0].aptidao
+      };
+    }
+    
+    // Fallback: verificar logs antigos se a tabela não tiver registro
+    try {
+      const logResult = await query(
+        `SELECT created_at 
+         FROM logs_sistema 
+         WHERE tipo = 'mensagem_enviada' 
+         AND descricao LIKE $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [`%avaliacao_id:${avaliacaoId}%`]
+      );
+      
+      if (logResult.rows.length > 0) {
+        return {
+          enviado: true,
+          data_envio: logResult.rows[0].created_at,
+          metodo_envio: 'whatsapp', // Default para logs antigos
+          aptidao: null
+        };
+      }
+    } catch (logError) {
+      // Ignorar erro de logs
+    }
+    
+    return {
+      enviado: false,
+      data_envio: null,
+      metodo_envio: null,
+      aptidao: null
+    };
   } catch (error) {
     console.error('Erro ao verificar mensagem enviada:', error);
     // Se a tabela não existir, retorna false
-    return false;
+    return {
+      enviado: false,
+      data_envio: null,
+      metodo_envio: null,
+      aptidao: null
+    };
   }
 }
 
@@ -145,7 +185,52 @@ async function sendEvaluationResult(avaliacaoId, aptidao, preferencia = 'email')
       }
     }
 
-    // Registrar no log que a mensagem foi enviada
+    // Registrar envio na tabela mensagens_enviadas (com upsert para atualizar se já existir)
+    try {
+      await query(
+        `INSERT INTO mensagens_enviadas (avaliacao_id, aptidao, metodo_envio, data_envio)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+         ON CONFLICT (avaliacao_id) 
+         DO UPDATE SET 
+           aptidao = EXCLUDED.aptidao,
+           metodo_envio = EXCLUDED.metodo_envio,
+           data_envio = CURRENT_TIMESTAMP`,
+        [avaliacaoId, aptidao, preferencia]
+      );
+      console.log('✅ Envio registrado na tabela mensagens_enviadas');
+    } catch (dbError) {
+      console.warn('⚠️ Erro ao registrar na tabela mensagens_enviadas:', dbError.message);
+      // Tentar criar tabela se não existir
+      try {
+        await query(`
+          CREATE TABLE IF NOT EXISTS mensagens_enviadas (
+            id SERIAL PRIMARY KEY,
+            avaliacao_id INTEGER REFERENCES avaliacoes(id) ON DELETE CASCADE,
+            aptidao VARCHAR(50) NOT NULL,
+            metodo_envio VARCHAR(20) NOT NULL,
+            data_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(avaliacao_id)
+          )
+        `);
+        // Tentar inserir novamente
+        await query(
+          `INSERT INTO mensagens_enviadas (avaliacao_id, aptidao, metodo_envio, data_envio)
+           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+           ON CONFLICT (avaliacao_id) 
+           DO UPDATE SET 
+             aptidao = EXCLUDED.aptidao,
+             metodo_envio = EXCLUDED.metodo_envio,
+             data_envio = CURRENT_TIMESTAMP`,
+          [avaliacaoId, aptidao, preferencia]
+        );
+        console.log('✅ Tabela criada e envio registrado');
+      } catch (createError) {
+        console.error('❌ Erro ao criar tabela:', createError);
+      }
+    }
+    
+    // Registrar no log também (para histórico)
     try {
       await query(
         `INSERT INTO logs_sistema (tipo, descricao, usuario_id, created_at)

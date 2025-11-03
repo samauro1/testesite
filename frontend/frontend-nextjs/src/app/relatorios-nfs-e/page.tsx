@@ -95,22 +95,28 @@ export default function RelatoriosNfsE() {
       }
 
       // Preparar dados para Excel
-      const excelData = nfsData.map((nfs: NfsEmitida) => ({
-        'CPF': nfs.paciente_cpf,
-        'NOME': nfs.paciente_nome,
-        'CEP': nfs.cep || '',
-        'ESTADO': 'SP', // Por enquanto fixo, pode ser extraído do CEP
-        'CIDADE': nfs.municipio || '',
-        'BAIRRO': nfs.bairro || '',
-        'NUMERO': nfs.numero_endereco || '',
-        'E-MAIL': nfs.email || '',
-        'CODIGO_SERVICO': nfs.codigo_servico,
-        'DISCRIMINACAO': nfs.discriminacao_servico,
-        'VALOR': nfs.valor,
-        'FORMA_PAGAMENTO': nfs.forma_pagamento || 'Dinheiro',
-        'DATA_EMISSAO': new Date(nfs.data_emissao).toLocaleDateString('pt-BR'),
-        'NUMERO_NFS_E': nfs.numero_nfs_e
-      }));
+      const excelData = nfsData.map((nfs: NfsEmitida) => {
+        // Campos separados: código de serviço e discriminação
+        const codigoServico = nfs.codigo_servico || '';
+        const discriminacao = nfs.discriminacao_servico || '';
+        
+        return {
+          'NOME': nfs.paciente_nome,
+          'CPF': nfs.paciente_cpf,
+          'CEP': nfs.cep || '',
+          'ESTADO': 'SP', // Por enquanto fixo, pode ser extraído do CEP
+          'CIDADE': nfs.municipio || '',
+          'BAIRRO': nfs.bairro || '',
+          'NUMERO': nfs.numero_endereco || '',
+          'E-MAIL': nfs.email || '',
+          'CODIGO_SERVICO': codigoServico,
+          'DISCRIMINACAO': discriminacao,
+          'VALOR': nfs.valor,
+          'FORMA_PAGAMENTO': nfs.forma_pagamento || 'Dinheiro',
+          'DATA_EMISSAO': new Date(nfs.data_emissao).toLocaleDateString('pt-BR'),
+          'NUMERO_NFS_E': nfs.numero_nfs_e
+        };
+      });
 
       // Criar workbook
       const wb = XLSX.utils.book_new();
@@ -118,8 +124,8 @@ export default function RelatoriosNfsE() {
 
       // Ajustar largura das colunas
       const colWidths = [
-        { wch: 15 }, // CPF
         { wch: 30 }, // NOME
+        { wch: 15 }, // CPF
         { wch: 10 }, // CEP
         { wch: 10 }, // ESTADO
         { wch: 20 }, // CIDADE
@@ -552,11 +558,18 @@ export default function RelatoriosNfsE() {
                         isDark ? 'text-dark-300' : 'text-gray-500'
                       }`}>
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          nfs.forma_pagamento === 'pix' 
+                          nfs.forma_pagamento === 'pix' || nfs.forma_pagamento === 'PIX'
                             ? 'bg-green-100 text-green-800' 
+                            : nfs.forma_pagamento === 'misto'
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-yellow-100 text-yellow-800'
                         }`}>
-                          {nfs.forma_pagamento === 'pix' ? 'PIX' : 'Dinheiro'}
+                          {(() => {
+                            const forma = (nfs.forma_pagamento || 'dinheiro').toLowerCase();
+                            if (forma === 'pix') return 'PIX';
+                            if (forma === 'misto') return 'Misto';
+                            return 'Dinheiro';
+                          })()}
                         </span>
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${

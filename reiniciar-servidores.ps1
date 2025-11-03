@@ -1,6 +1,5 @@
-# Script para iniciar Backend e Frontend
-# Uso: .\iniciar-servidores.ps1
-# SEMPRE fecha TODOS os processos Node.js e PowerShell antes de reiniciar
+# Script para reiniciar os servidores
+# Fecha TODOS os processos Node.js e janelas PowerShell antes de reiniciar
 
 Write-Host "🔄 Reiniciando todos os servidores..." -ForegroundColor Cyan
 
@@ -17,37 +16,23 @@ Get-Process powershell -ErrorAction SilentlyContinue | Where-Object {
     $_.CommandLine -like "*npm run dev*"
 } | Stop-Process -Force -ErrorAction SilentlyContinue
 
+Write-Host "⏳ Aguardando 3 segundos para garantir que tudo foi encerrado..." -ForegroundColor Gray
 Start-Sleep -Seconds 3
 Write-Host "✅ Todos os processos encerrados" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "🚀 Iniciando Backend e Frontend..." -ForegroundColor Cyan
-
-# Backend
-Write-Host "  → Backend (porta 3001)..." -ForegroundColor White
-Set-Location E:\sistemas\codigo
+Write-Host "🚀 Iniciando Backend na porta 3001..." -ForegroundColor Green
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd E:\sistemas\codigo; Write-Host '🚀 Backend iniciando na porta 3001...' -ForegroundColor Green; npm start"
 
-Start-Sleep -Seconds 3
+Write-Host "⏳ Aguardando 4 segundos antes de iniciar frontend..." -ForegroundColor Gray
+Start-Sleep -Seconds 4
 
-# Frontend
-Write-Host "  → Frontend (porta 3000)..." -ForegroundColor White
-Set-Location E:\sistemas\frontend\frontend-nextjs
-if (Test-Path ".next") {
-    Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
-    Write-Host "    ✓ Cache do Next.js limpo" -ForegroundColor Gray
-}
+Write-Host "🚀 Iniciando Frontend na porta 3000..." -ForegroundColor Green
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd E:\sistemas\frontend\frontend-nextjs; Write-Host '🚀 Frontend iniciando na porta 3000...' -ForegroundColor Green; npm run dev"
 
-Start-Sleep -Seconds 3
-
 Write-Host ""
-Write-Host "✅ Ambos os servidores iniciados!" -ForegroundColor Green
-Write-Host "📋 URLs:" -ForegroundColor Cyan
-Write-Host "  • Backend: http://localhost:3001" -ForegroundColor White
-Write-Host "  • Frontend: http://localhost:3000" -ForegroundColor White
+Write-Host "✅ Servidores reiniciados com sucesso!" -ForegroundColor Green
+Write-Host "📝 Backend: http://localhost:3001" -ForegroundColor Cyan
+Write-Host "📝 Frontend: http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "⏳ Aguarde 10-15 segundos para inicialização completa" -ForegroundColor Yellow
-Write-Host "💡 Verifique as 2 janelas do PowerShell que abriram:" -ForegroundColor White
-Write-Host "   1. Backend - deve mostrar 'Servidor rodando na porta 3001'" -ForegroundColor Gray
-Write-Host "   2. Frontend - deve mostrar 'Ready' e URL local" -ForegroundColor Gray
