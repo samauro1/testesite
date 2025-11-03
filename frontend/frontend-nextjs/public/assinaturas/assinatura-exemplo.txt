@@ -1,0 +1,32 @@
+# 📄 Instruções para Adicionar Sua Assinatura
+
+## 🎯 Passo a Passo:
+
+### 1. Processe sua imagem:
+- Use remove.bg para remover fundo
+- Ou photopea.com (gratuito)
+- Salve como PNG com transparência
+
+### 2. Renomeie o arquivo:
+- Nome atual: [seu-arquivo-processado].png
+- Nome necessário: assinatura-mauro.png
+
+### 3. Mova para esta pasta:
+- De: Onde você salvou o arquivo
+- Para: frontend-nextjs/public/assinaturas/
+
+### 4. Teste no sistema:
+- Acesse: http://192.168.6.230:3000/relatorios
+- Aba: Declaração
+- Buscar: 461.701.378-43
+- Adicionar Assinatura
+
+## 🔧 Se ainda não funcionar:
+
+1. Verifique se o arquivo tem extensão .png
+2. Verifique se não tem caracteres especiais no nome
+3. Verifique se o arquivo não está corrompido
+4. Tente com um arquivo de teste simples primeiro
+
+## 📞 Suporte:
+Se precisar de ajuda, posso criar uma assinatura de exemplo para testar!

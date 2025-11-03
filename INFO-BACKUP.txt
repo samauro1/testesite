@@ -1,0 +1,42 @@
+BACKUP COMPLETO DO SISTEMA PALOGRÁFICO
+========================================
+
+Data/Hora: 26/10/2025, 11:24:05
+Nome: palografico-backup-completo-2025-10-26T14-23-28
+
+CONTEÚDO DO BACKUP:
+- Código fonte (backend)
+- Frontend (Next.js)
+- Configurações (.env)
+- Scripts de inicialização
+- Documentação
+- Dump do banco de dados
+
+BANCO DE DADOS:
+- Nome: sistema_avaliacao_psicologica
+- Usuário: postgres
+- Senha: diogo
+- Host: localhost
+- Porta: 5432
+
+USUÁRIO PRINCIPAL:
+- Email: samauro@gmail.com
+- Senha: Diogo
+- Nome: Mauro Sanchez
+- Perfil: administrador
+
+DADOS INCLUÍDOS:
+- 4 pacientes
+- 14 avaliações
+- 8 agendamentos
+
+PARA RESTAURAR:
+1. Extrair o backup
+2. Configurar PostgreSQL
+3. Restaurar banco: psql -U postgres -d sistema_avaliacao_psicologica -f banco-dados.sql
+4. Instalar dependências: npm install
+5. Iniciar servidores: npm run dev
+
+SISTEMA FUNCIONANDO:
+- Backend: http://192.168.5.19:3001
+- Frontend: http://192.168.5.19:3000

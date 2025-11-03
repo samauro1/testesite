@@ -1,0 +1,439 @@
+<!-- Scripts --><!-- Conteúdo --><!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"><html><head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+<title>eCNHsp - DETRAN - São Paulo</title>
+
+<!-- Bootstrap -->
+    <link href="/GFR/css/bootstrap.css?v=1" rel="stylesheet" type="text/css">
+
+<!-- STYLE DEFAULT  -->
+<link rel="stylesheet" href="/GFR/css/theme.css" type="text/css" media="all" title="cor">
+<!-- FIM STYLE DEFAULT  -->
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="/GFR/js/html5shiv.min.js"></script>
+      <script src="/GFR/js/respond.min.js"></script>
+    <![endif]-->
+
+<!-- JAVASCRIPTS COMUNS -->
+<script language="javascript" src="/GFR/js/textzoom.js" type="text/javascript"></script>
+
+<script type="text/javascript" src="/GFR/js/app/global.js"></script>
+<script type="text/javascript" src="/GFR/js/app/comumApp.js"></script>
+<script type="text/javascript" src="/GFR/js/comum.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/utils.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/detect.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/date.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/cpf.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/cnpj.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/email.js"></script>
+<script type="text/javascript" src="/GFR/js/commons/validate.js"></script>
+<script type="text/javascript">// Para exibição de erros
+var errors = new Array();
+
+var saida = "";
+
+
+
+	
+function showErrors() {
+	if (top.showWait) top.showWait(false);
+	if (errors.length > 0) {
+		for (var indErro=0; indErro < errors.length; indErro++){
+			saida = saida + errors[indErro] + "\n";			
+		}
+		
+		alert(saida);
+		
+		return true;
+	}
+	return false;
+}</script>
+<script type="text/javascript">// Para exibição de Mensagens
+var messages = new Array();
+
+
+
+	
+function showMessages() {
+	if (top.showWait) top.showWait(false);
+	if (messages.length > 0) {
+		for (var indMessage=0; indMessage < messages.length; indMessage++)
+		{
+			alert(messages[indMessage]);
+		}
+	}
+}
+</script>
+<script type="text/javascript">//Para chamar uma funcao de Init de Pagina apos o 'onLoad' caso ela exista
+function initPage(){	
+	
+	
+	//Caso as paginas que implementam tenha definido o Init	
+	try{	
+		initPageImpl();
+	}	
+	catch(e){			
+	}
+}
+</script>
+<script type="text/javascript">//Para chamar uma funcao de unload de Pagina nos casos de chamadas 'onUnload' caso ela exista
+function unloadPage(){
+	//Caso as paginas que implementam tenha definido o método para unload	
+	try{	
+		unloadPageImpl();
+	}	
+	catch(e){			
+	}
+}</script>
+<!-- FIM JAVASCRIPTS COMUNS -->
+
+<!-- JAVASCRIPTS GREYBOX -->
+<script type="text/javascript">
+	var GB_ROOT_DIR = "/GFR/js/greybox/";
+</script>
+<script type="text/javascript" src="/GFR/js/greybox/AJS.js"></script>
+<script type="text/javascript" src="/GFR/js/greybox/AJS_fx.js"></script>
+<script type="text/javascript" src="/GFR/js/greybox/gb_scripts.js"></script>
+<link href="/GFR/js/greybox/gb_styles.css" rel="stylesheet" type="text/css" media="all">
+	
+<!-- FIM JAVASCRIPTS GREYBOX -->
+
+<!-- NOVO TEMA JS -->
+
+
+<!-- FIM  NOVO TEMA JS -->
+
+<!-- JAVASCRIPTS VALIDATOR -->
+<script type="text/javascript" src="/GFR/js/struts-validation.js"></script>
+<!-- FIM JAVASCRIPTS VALIDATOR -->
+
+
+<!-- CSS de contraste -->
+<link rel="stylesheet" href="/GFR/css/contraste.css" type="text/css" media="all" title="cinza" disabled="">  
+<link rel="stylesheet" href="/GFR/css/buttons.css">
+<!-- FIM CSS de contraste-->
+<!-- FIM STYLE DEFAULT-->
+
+<!-- STYLE EXTRA -->
+
+<!-- FIM STYLE EXTRA -->
+
+<!-- JAVASCRIPTS EXTRAS -->
+
+		<script type="text/javascript" src="/GFR/js/app/relatorio/listagemaulas/consultaCargaAulaPratica.js"></script>
+		<script type="text/javascript" language="Javascript1.1"> 
+
+<!-- Begin 
+
+    var bCancel = false; 
+
+    function validateConsultaCargaAulaPraticaForm(form) { 
+        if (bCancel) { 
+            return true; 
+        } else { 
+            return true; 
+        } 
+    } 
+
+
+//End --> 
+</script>
+
+
+		<script type="text/javascript">
+			function validateForm(){
+				return validateConsultaCargaAulaPraticaForm(document.forms['ConsultaCargaAulaPraticaForm']) && fieldsValidate(document.forms['ConsultaCargaAulaPraticaForm']);
+			}
+		</script>
+	
+<!-- FIM JAVASCRIPTS EXTRAS -->
+
+
+
+<script src="/GFR/js/bootstrap.min.js"></script>
+<script language="javascript" src="/GFR/js/acess_texto.js" type="text/javascript"></script>
+<script language="javascript" src="/GFR/js/styleswitcher.js?v=15445"></script>
+<!--JAVASCRIPT GLOBAL DO TILES -->
+<script type="text/javascript">
+var temErros = false;
+
+//Chama a funcao de mensagem de erros
+function showErrorsHere(){
+	this.temErros = showErrors();
+	
+	//CHAMA A Function de Calls se houver
+	try{
+		callAppFunctions();
+	}
+	catch(e){
+	//faz nada
+	}
+}
+</script>
+
+<!--  JavaScript colocados pela Aplicacao -->
+
+<!--FIM JAVASCRIPT GLOBAL DO TILES -->
+
+<!-- CLOSE POPUPs -->
+<script type="text/javascript">
+	function closePopUps(){
+		try{
+			top.closeChildWindow();
+		}catch(e){}
+	}
+</script>
+<!-- FIM CLOSE POPUPs -->
+
+</head>
+<body onload="initPage();showErrorsHere();" onunload="closePopUps();" marginheight="0" marginwidth="0" topmargin="0">
+
+
+
+<!--TOPO BANNER - INÍCIO -->
+
+
+		<div class="header">
+            <a href="#" onclick="top.gotoHome();" id="logo" title="e-cnhsp - tecla de atalho (Alt + 0)" accesskey="0">
+            	e-CNHsp - Serviços de Habilitação
+           	</a>
+            <!--<a href="http://www.detran.sp.gov.br/" id="logo_detran" target="_blank" title="Portal Detran SP - tecla de atalho (Alt + 4)" accesskey="4"><img src="imagens/logo_detran.png" class="img-responsive visible-sm-block visible-md-block visible-lg-block" alt="logo detransp" /></a>-->
+        	<dl>
+            	<dt>Acessibilidade:</dt>
+                <dd><a href="#" onclick="setActiveStyleSheet('cor')" class="acess_cor">Cor padrão</a></dd>
+                <dd><a href="#" onclick="setActiveStyleSheet('cinza')" class="acess_pb">Alto contraste</a></dd>
+                <dd><a href="#" class="decrease">Diminuir tamanho do texto</a></dd>
+                <dd><a href="#" class="increase">Aumentar tamanho do texto</a></dd>
+            </dl>
+        </div>
+        
+        <!-- menu superior -->
+        <div class="navbar navbar-inverse navbar-static-top" id="menu_principal">
+            <div class="container">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                        <span class="sr-only">Toggle1 navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <a class="navbar-brand hidden-sm hidden-md hidden-lg" href="#" onclick="top.gotoHome();">Menu</a>
+                </div>
+                <div class="navbar-collapse collapse">
+                    <ul class="nav navbar-nav">
+                        <li><a href="#" onclick="top.gotoHome();">Home</a></li>
+                        <li><a href="/gefor/GFR/ajudaExterna/oque.jsp">O que é</a></li>
+                        <li><a href="/gefor/GFR/ajudaExterna/duvidas.jsp">Dúvidas</a></li>
+                        <li><a href="/gefor/GFR/ajudaExterna/atendimento.jsp">Central de Atendimento</a></li>
+                        <li><a href="/gefor/GFR/ajudaExterna/competencias.jsp">Competências e Responsabilidades</a>
+                    </li></ul>
+                </div>
+            </div>
+        </div>
+<!--TOPO BANNER - FIM -->
+<div class="container" id="conteudo">
+	<div class="row">
+		<!-- coluna esquerda -->
+		<div class="col-sm-3">
+			                    <!-- menu -->                    
+                    <div class="list-group menu">
+                    <div class="panel-heading">Serviços ao Cidadão</div>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarPrimeiraHabilitacao" onclick="top.showWait(true);" class="list-group-item">Primeira Habilitação</a>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarReabilitacao" onclick="top.showWait(true);" class="list-group-item">Nova Habilitação - Permissionário Pontuado</a>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarRenovacao" onclick="top.showWait(true);" class="list-group-item">Renovação</a>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarCassacaoReabilitacao" onclick="top.showWait(true);" class="list-group-item">Reabilitação-Cassação/Crime</a>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarMudancaCategoria" onclick="top.showWait(true);" class="list-group-item">Adição / Mudança de Categoria</a>
+                        <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarEstrangeiro" onclick="top.showWait(true);" class="list-group-item">Registro de CNH Estrangeira</a>
+                         <!-- <a href="/gefor/GFR/candidato/cadastro/preCadastro.do?method=iniciarGeracaoCadastroPrimeiraHabilitacao"
+                                 onclick="top.showWait(true);" class="list-group-item">Gerar Cadastro Primeira Habilita&ccedil;&atilde;o</a> -->
+                        <a href="/gefor/GFR/candidato/agendamento/consultaAgendamento.do?method=iniciarPesquisa" onclick="top.showWait(true);" class="list-group-item">Consultar Agendamento</a>
+                        <a href="/gefor/GFR/base/restricoesmedicas.do" onclick="top.showWait(true);" class="list-group-item">Restrições Médicas</a>
+                        <a href="/gefor/GFR/relatorio/listagemaula/teorica.do?method=iniciarPesquisa" onclick="top.showWait(true);" class="list-group-item">Consulta de Aulas Teóricas</a>
+                        <a href="/gefor/GFR/relatorio/listagemaula/pratica.do?method=iniciarPesquisa" onclick="top.showWait(true);" class="list-group-item">Consulta de Aulas Práticas</a>
+                        <a href="/gefor/GFR/aula/controleAulaSimulador.do?method=iniciarConsultaAula" onclick="top.showWait(true);" class="list-group-item">Consulta de Aulas Simulador</a>
+                        <a href="/gefor/GFR/candidato/agendamentoCassacao.do?method=iniciaAgendamento&amp;tipoAgendamento=2" onclick="top.showWait(true);" class="list-group-item">Suspensão/Cassação CNH - Capital - (Advogados e Despachantes)</a>
+                        <a href="/gefor/GFR/credenciamento/consultaDocumentosCredenciamento.do?method=iniciarPesquisa" onclick="top.showWait(true);" class="list-group-item">Credenciar Parceiros</a>
+                    </div>
+		</div>
+		<!-- fim coluna esquerda -->
+		<!-- coluna direita -->
+		<div class="col-sm-9" id="printableContent">
+			
+		<form name="ConsultaCargaAulaPraticaForm" method="post" action="/gefor/GFR/relatorio/listagemaula/pratica.do">
+			<input type="hidden" name="method" value="pesquisar">
+			<input type="hidden" name="varTiles" value="tiles.externaMenu">
+
+			
+				<table width="100%" height="100%" border="0" cellspacing="0" cellpadding="0" class="texto">
+					<tbody><tr>
+						<td class="tab_cant_sup_esq">&nbsp;</td>
+						
+						<td class="tab_sup_fund">
+							<p>Consulta Carga de Aulas Práticas</p>
+						</td>
+						
+						<td class="tab_cant_sup_dir">&nbsp;</td>
+					</tr>
+					
+					<tr>
+						<td class="tab_cant_sup_esq2"></td>
+						<td></td>
+						<td class="tab_cant_sup_dir2"></td>
+					</tr>
+					
+					<tr height="100%">
+						<td class="tab_bar_esq"></td>
+						
+						<td class="texto" valign="top">
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+								<tbody><tr>
+									<td>
+										<!-- Pesquisa -->							
+										<fieldset>
+											<legend align="left" class="fonte_legend">Pesquisa por CPF</legend>
+											
+											<input type="hidden" name="codTipoBiometria" value="0">
+											
+											<table width="100%" border="0" cellspacing="8" cellpadding="0">
+												<tbody><tr>
+													<!-- CPF -->
+													<td class="texto_menor">
+														<p>CPF
+															<br>
+															<input type="text" name="cpfPesquisa" maxlength="14" size="15" value="" onkeyup="saltaCampo(event,this,'cpf',11)" onkeypress="return(validaConteudo(event,this,'cpf'))" onblur="formatCamp(this,'cpf')" onfocus="removeCaracs(this,'cpf')" id="pesquisa-cpf" class="campos">
+														</p>
+													</td>
+													
+													<!-- Data de nascimento -->
+													
+														<td class="texto_menor">																																
+															<p>Data de Nascimento
+																<br>
+																<input type="text" name="dataNascimento" size="10" value="" onkeyup="saltaCampo(event,this,'date',10)" onkeypress="return(validaConteudo(event,this,'date'))" onblur="formatCamp(this,'date')" onfocus="removeCaracs(this,'date')" id="pesquisar-data-nascimento" class="campos">																
+															</p>																	
+														</td>
+													
+												</tr>
+												
+												<tr>
+													<td>&nbsp;</td>
+												</tr>
+											</tbody></table>
+										</fieldset>										
+									</td>
+								</tr>
+							</tbody></table>
+							
+							<!-- Botões -->
+							<table width="100%" border="0" cellspacing="0" cellpadding="0">
+								<tbody><tr align="right">
+									<td>
+										<a id="consultaCargaAulasPraticas-voltar-1" href="#" onclick="top.gotoHome();" class="bt_voltar">VOLTAR</a>
+										<a id="consultaCargaAulasPraticas-cancelar" href="#" onclick="cancelar();" class="bt_cancelar">CANCELAR</a>
+										<a id="consultaCargaAulasPraticas-pesquisar" href="#" onclick="pesquisar();" class="bt_pesquisar">PESQUISAR</a>
+									</td>
+								</tr>
+							</tbody></table>
+							</td><td class="tab_bar_dir"></td>
+							
+						
+					</tr>
+					
+					<tr>
+						<td class="tab_cant_inf_esq"></td>
+						<td class="tab_inf_fund"></td>
+						<td class="tab_cant_inf_dir"></td>
+					</tr>
+				</tbody></table>
+			
+
+			
+
+		</form>
+	
+		</div>
+		<!-- fim coluna direita -->
+    </div>
+    
+</div>
+
+<!-- Aguarde -->
+<div id="waitShow" style="visibility: visible; opacity: 0.95; position: absolute; width: 100%; height: 90%; z-index: 9; left: 0px; top: 0px;">
+<table width="100%" height="100%" border="0">
+	<tbody><tr height="100%">
+		<td align="center" valign="middle"><img id="imgWait" src="/GFR/imagens/wait.gif" style="cursor: default" alt="" border="0"></td>
+	</tr>
+</tbody></table>
+</div>
+<div id="waitTransp" style="visibility: visible; position: absolute; width: 100%; height: 90%; z-index: 10; left: 0px; top: 0px;">
+<img src="/GFR/imagens/nada.gif" style="cursor: wait" width="100%" height="100%" border="0"></div>
+
+<!-- iFRAME MENSAGENS -->
+<iframe name="iframe_mensagem" style="visibility: hidden" frameborder="0" width="0" height="0"></iframe>
+
+<!-- iFrame CallBack -->
+<iframe name="iframe_cb" id="iframe_cb" style="visibility: hidden" frameborder="0" width="0" height="0"></iframe>
+	
+
+
+
+
+
+<div class="footer">
+  <div class="container">
+    <p class="text-muted">
+      <a href="http://www.prodesp.sp.gov.br/" target="_blank" rel="noopener">
+        Prodesp - Tecnologia da Informação
+      </a>
+      -
+      <!-- versão do EAR -->
+      <span id="app-version">
+        v3.94 (30/10/2025) | [#261008]
+      </span>
+
+      <span id="static-version"></span>
+    </p>
+  </div>
+</div>
+<!-- RODAPÉ - FIM -->
+
+<script>
+(function () {
+  var url = '/GFR/release.json';
+  var appEl = document.getElementById('app-version');
+  var outEl = document.getElementById('static-version');
+  if (!appEl || !outEl) return;
+
+  fetch(url, { cache: 'no-cache' })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function (j) {
+      // procura padrão: vX[.Y[.Z]] (DD/MM/AAAA)
+      var m = (appEl.textContent || '').match(/(v\d+(?:\.\d+)*).*\((\d{2}\/\d{2}\/\d{4})\)/);
+      var appV = m ? m[1] : '';
+      var appD = m ? m[2] : '';
+
+      var sV = j.version || '';
+      var sD = j.date || '';
+
+      if (sV && sD && sV === appV && sD === appD) return;
+
+      outEl.textContent = ' | Estático ' + (sV||'N/D') + ' (' + (sD||'N/D') + ')';
+      outEl.style.color = '#d9534f';
+      outEl.title = 'Versão/data do estático diferente do EAR';
+    })
+    .catch(function (err) {
+        console.warn('[Rodapé] Falha ao carregar release.json ou comparar versões:', err);
+    });
+})();
+</script>
+
+
+</body><!-- RODAPÉ - INÍCIO --></html>
