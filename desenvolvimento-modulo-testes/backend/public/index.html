@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulo de Testes - Desenvolvimento Isolado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+
+        .result h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .result-value {
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .endpoint {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin: 5px 0;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Módulo de Testes</h1>
+            <p>Ambiente de Desenvolvimento Isolado - Porta 3002</p>
+        </div>
+
+        <div class="content">
+            <!-- Status do Servidor -->
+            <div class="section">
+                <h2>📊 Status do Servidor</h2>
+                <div id="serverStatus" class="status">Verificando...</div>
+                <button class="btn" onclick="checkServer()">🔄 Verificar Servidor</button>
+            </div>
+
+            <!-- Teste AC - Entrada Manual -->
+            <div class="section">
+                <h2>🧪 Teste AC - Entrada Manual</h2>
+                <form id="acForm">
+                    <div class="form-group">
+                        <label for="acertos">Acertos (A):</label>
+                        <input type="number" id="acertos" name="acertos" min="0" value="147" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="erros">Erros (E):</label>
+                        <input type="number" id="erros" name="erros" min="0" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="omissoes">Omissões (O):</label>
+                        <input type="number" id="omissoes" name="omissoes" min="0" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regiao">Região:</label>
+                        <select id="regiao" name="regiao">
+                            <option value="">Selecione (opcional)</option>
+                            <option value="Sul">Sul</option>
+                            <option value="Sudeste" selected>Sudeste</option>
+                            <option value="Centro-oeste">Centro-Oeste</option>
+                            <option value="Nordeste">Nordeste</option>
+                            <option value="Norte">Norte</option>
+                            <option value="Geral">Geral</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="escolaridade">Escolaridade:</label>
+                        <select id="escolaridade" name="escolaridade">
+                            <option value="Total">Total</option>
+                            <option value="Ensino Fundamental">Ensino Fundamental</option>
+                            <option value="Ensino Médio">Ensino Médio</option>
+                            <option value="Ensino Superior" selected>Ensino Superior</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="idade">Idade (18-64 anos):</label>
+                        <input type="number" id="idade" name="idade" min="18" max="64" placeholder="26">
+                    </div>
+                    <button type="submit" class="btn">📊 Calcular Resultado</button>
+                </form>
+
+                <!-- Botões para popular tabelas (admin) -->
+                <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                    <h4 style="margin-bottom: 15px;">🗄️ Popular Tabelas Normativas</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <button id="popularTabelasACBtn" class="btn" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                            📊 AC
+                        </button>
+                        <button id="popularTabelasPalograficoBtn" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            ✍️ Palográfico
+                        </button>
+                        <button id="popularTabelasMemoriaBtn" class="btn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                            🧠 Memória
+                        </button>
+                        <button id="popularTodasTabelasBtn" class="btn" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            🗄️ Todas
+                        </button>
+                    </div>
+                    <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                        Execute apenas uma vez para popular o banco de dados.
+                    </p>
+                </div>
+
+                <div id="acResult" style="display: none;"></div>
+            </div>
+
+            <!-- Link para interface completa -->
+            <div style="margin-top: 30px; padding: 20px; background: #f0f0f0; border-radius: 8px; text-align: center;">
+                <h3 style="margin-bottom: 15px;">🚀 Interface Completa de Testes</h3>
+                <p style="margin-bottom: 20px; color: #666;">
+                    Acesse a interface multi-step com suporte para Palográfico, Memória e análise de imagens
+                </p>
+                <a href="/testes.html" class="btn" style="text-decoration: none; display: inline-block;">
+                    🧪 Abrir Interface Completa
+                </a>
+            </div>
+
+            <!-- Endpoints Disponíveis -->
+            <div class="section">
+                <h2>🔗 Endpoints da API</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Health Check</h3>
+                        <div class="endpoint">GET /health</div>
+                        <p>Verifica se o servidor está funcionando</p>
+                    </div>
+                    <div class="card">
+                        <h3>Listar Testes</h3>
+                        <div class="endpoint">GET /api/testes</div>
+                        <p>Lista todos os tipos de testes disponíveis</p>
+                    </div>
+                    <div class="card">
+                        <h3>Calcular AC</h3>
+                        <div class="endpoint">POST /api/ac/calcular</div>
+                        <p>Calcula resultado do teste AC</p>
+                    </div>
+                    <div class="card">
+                        <h3>Tabelas AC</h3>
+                        <div class="endpoint">GET /api/ac/tabelas</div>
+                        <p>Lista tabelas normativas do AC</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3002';
+
+        // Função auxiliar para popular tabelas
+        async function popularTabelas(endpoint, nomeTabela) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✅ Tabelas normativas de ${nomeTabela} populadas com sucesso!`);
+                    return true;
+                } else {
+                    alert(`❌ Erro ao popular ${nomeTabela}: ${data.message || data.error}`);
+                    return false;
+                }
+            } catch (error) {
+                alert(`❌ Erro ao popular ${nomeTabela}: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Verificar status do servidor ao carregar
+        window.addEventListener('DOMContentLoaded', () => {
+            checkServer();
+            
+            // Botões para popular tabelas
+            const popularACBtn = document.getElementById('popularTabelasACBtn');
+            if (popularACBtn) {
+                popularACBtn.addEventListener('click', async () => {
+                    popularACBtn.disabled = true;
+                    const originalText = popularACBtn.innerHTML;
+                    popularACBtn.innerHTML = '⏳ Populando...';
+                    await popularTabelas('/api/admin/popular-tabelas-ac', 'AC');
+                    popularACBtn.disabled = false;
+                    popularACBtn.innerHTML = originalText;
+                });
+            }
+            
+            const popularPalograficoBtn = document.getElementById('popularTabelasPalograficoBtn');
+            if (popularPalograficoBtn) {
+                popularPalograficoBtn.addEventListener('click', async () => {
+                    popularPalograficoBtn.disabled = true;
+                    const originalText = popularPalograficoBtn.innerHTML;
+                    popularPalograficoBtn.innerHTML = '⏳ Populando...';
+                    await popularTabelas('/api/admin/popular-tabelas-palografico', 'Palográfico');
+                    popularPalograficoBtn.disabled = false;
+                    popularPalograficoBtn.innerHTML = originalText;
+                });
+            }
+            
+            const popularMemoriaBtn = document.getElementById('popularTabelasMemoriaBtn');
+            if (popularMemoriaBtn) {
+                popularMemoriaBtn.addEventListener('click', async () => {
+                    popularMemoriaBtn.disabled = true;
+                    const originalText = popularMemoriaBtn.innerHTML;
+                    popularMemoriaBtn.innerHTML = '⏳ Populando...';
+                    await popularTabelas('/api/admin/popular-tabelas-memoria', 'Memória');
+                    popularMemoriaBtn.disabled = false;
+                    popularMemoriaBtn.innerHTML = originalText;
+                });
+            }
+            
+            const popularTodasBtn = document.getElementById('popularTodasTabelasBtn');
+            if (popularTodasBtn) {
+                popularTodasBtn.addEventListener('click', async () => {
+                    popularTodasBtn.disabled = true;
+                    const originalText = popularTodasBtn.innerHTML;
+                    popularTodasBtn.innerHTML = '⏳ Populando todas...';
+                    await popularTabelas('/api/admin/popular-todas-tabelas', 'Todas');
+                    popularTodasBtn.disabled = false;
+                    popularTodasBtn.innerHTML = originalText;
+                });
+            }
+        });
+
+        async function checkServer() {
+            const statusDiv = document.getElementById('serverStatus');
+            statusDiv.textContent = 'Verificando...';
+            statusDiv.className = 'status';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    statusDiv.textContent = '✅ Servidor funcionando corretamente!';
+                    statusDiv.className = 'status success';
+                } else {
+                    statusDiv.textContent = '⚠️ Servidor respondeu, mas status desconhecido';
+                    statusDiv.className = 'status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = `❌ Erro ao conectar: ${error.message}`;
+                statusDiv.className = 'status error';
+            }
+        }
+
+        // Formulário AC
+        document.getElementById('acForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const acertos = parseInt(document.getElementById('acertos').value);
+            const erros = parseInt(document.getElementById('erros').value);
+            const omissoes = parseInt(document.getElementById('omissoes').value);
+            const escolaridade = document.getElementById('escolaridade').value;
+            const regiao = document.getElementById('regiao').value;
+            const idade = document.getElementById('idade').value ? parseInt(document.getElementById('idade').value) : null;
+
+            const resultDiv = document.getElementById('acResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<p>Calculando...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/ac/calcular`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        acertos,
+                        erros,
+                        omissoes,
+                        escolaridade,
+                        regiao: regiao || undefined,
+                        idade: idade || undefined
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const resultado = data.data;
+                    resultDiv.innerHTML = `
+                        <div class="result">
+                            <h3>📊 Resultado do Cálculo</h3>
+                            <div class="result-item">
+                                <span class="result-label">Acertos:</span>
+                                <span class="result-value">${resultado.acertos}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Erros:</span>
+                                <span class="result-value">${resultado.erros}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Omissões:</span>
+                                <span class="result-value">${resultado.omissoes}</span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Pontos (PB):</span>
+                                <span class="result-value"><strong>${resultado.pb}</strong></span>
+                            </div>
+                            <div class="result-item">
+                                <span class="result-label">Fórmula:</span>
+                                <span class="result-value">${resultado.formula || 'P = A - (E + O)'}</span>
+                            </div>
+                            ${resultado.percentil !== null ? `
+                                <div class="result-item">
+                                    <span class="result-label">Percentil:</span>
+                                    <span class="result-value"><strong>${resultado.percentil}</strong></span>
+                                </div>
+                                <div class="result-item">
+                                    <span class="result-label">Classificação:</span>
+                                    <span class="result-value"><strong>${resultado.classificacao}</strong></span>
+                                </div>
+                            ` : `
+                                <div class="result-item">
+                                    <span class="result-label">Percentil:</span>
+                                    <span class="result-value">${resultado.classificacao || 'Não encontrado'}</span>
+                                </div>
+                            `}
+                            <div class="result-item">
+                                <span class="result-label">Tabela Utilizada:</span>
+                                <span class="result-value">${resultado.tabela_utilizada || 'Desconhecida'}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="result">
+                            <h3>❌ Erro</h3>
+                            <p>${data.error || data.message || 'Erro desconhecido'}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <h3>❌ Erro de Conexão</h3>
+                        <p>${error.message}</p>
+                        <p>Verifique se o servidor está rodando na porta 3002</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
+
