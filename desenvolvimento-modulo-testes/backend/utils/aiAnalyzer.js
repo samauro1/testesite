@@ -13,6 +13,48 @@ const { OpenAI } = require('openai');
 const fs = require('fs-extra');
 const path = require('path');
 const sharp = require('sharp');
+let imageJsModule = null;
+async function getImageJs() {
+  if (!imageJsModule) {
+    const imported = await import('image-js');
+    const moduleRef =
+      imported && imported.default && Object.keys(imported.default).length
+        ? imported.default
+        : imported;
+
+    const read = moduleRef.read;
+    const decode = moduleRef.decode;
+    const encode = moduleRef.encode;
+
+    if (typeof read !== 'function' || typeof decode !== 'function' || typeof encode !== 'function') {
+      throw new Error('Biblioteca image-js não forneceu read/decode/encode como esperado');
+    }
+
+    imageJsModule = { read, decode, encode };
+  }
+  return imageJsModule;
+}
+const stringSimilarity = require('string-similarity');
+
+/**
+ * Calcula o índice de concordância entre dois textos utilizando tokens.
+ * Retorna valor entre 0 e 1.
+ */
+function calcularConcordanciaTextual(textoA, textoB) {
+  if (!textoA || !textoB) {
+    return 0;
+  }
+
+  try {
+    return stringSimilarity.compareTwoStrings(
+      (textoA || '').toLowerCase(),
+      (textoB || '').toLowerCase()
+    );
+  } catch (error) {
+    console.log('⚠️ Falha ao calcular concordância com string-similarity:', error.message);
+    return 0;
+  }
+}
 
 // Inicializar OpenAI (se API key estiver disponível)
 let openai = null;
@@ -23,42 +65,86 @@ if (process.env.OPENAI_API_KEY) {
 }
 
 /**
- * Pré-processa imagem para melhorar qualidade do OCR
+ * Pré-processa imagem com pipeline de "nível perícia" para maximizar a qualidade do OCR
  */
 async function preprocessImage(imagePathOrBuffer, outputPath) {
   try {
-    // Se for um caminho de arquivo, usar diretamente; se for buffer, passar o buffer
-    let input = imagePathOrBuffer;
-    
-    // Se for string e não começar com 'data:', é um caminho de arquivo
+    let inputBuffer;
+
     if (typeof imagePathOrBuffer === 'string' && !imagePathOrBuffer.startsWith('data:')) {
-      input = imagePathOrBuffer;
+      inputBuffer = await fs.readFile(imagePathOrBuffer);
     } else if (Buffer.isBuffer(imagePathOrBuffer)) {
-      input = imagePathOrBuffer;
+      inputBuffer = imagePathOrBuffer;
+    } else if (typeof imagePathOrBuffer === 'string' && imagePathOrBuffer.startsWith('data:')) {
+      const base64Data = imagePathOrBuffer.split(',')[1];
+      inputBuffer = Buffer.from(base64Data, 'base64');
     } else {
-      // Se for data URL, converter para buffer
-      if (typeof imagePathOrBuffer === 'string' && imagePathOrBuffer.startsWith('data:')) {
-        const base64Data = imagePathOrBuffer.split(',')[1];
-        input = Buffer.from(base64Data, 'base64');
-      } else {
-        input = imagePathOrBuffer;
-      }
+      inputBuffer = Buffer.from(imagePathOrBuffer);
     }
-    
-    await sharp(input)
-      .resize({ width: 1200, height: null, withoutEnlargement: false })
+
+    const { read, decode, encode } = await getImageJs();
+
+    let baseImage;
+    if (typeof imagePathOrBuffer === 'string' && !imagePathOrBuffer.startsWith('data:')) {
+      baseImage = await read(imagePathOrBuffer);
+    } else {
+      baseImage = decode(inputBuffer);
+    }
+
+    let deskewedImage = baseImage;
+    try {
+      const mask = baseImage.grey().threshold({ algorithm: 'otsu' });
+      const feret = mask.getFeret();
+      const angle = feret?.maxDiameter?.angle ?? 0;
+      if (Number.isFinite(angle) && Math.abs(angle) > 0.1) {
+        deskewedImage = baseImage.rotate(-angle);
+        console.log(`📐 Pré-processamento: ângulo corrigido em ${angle.toFixed(2)}°`);
+      } else {
+        console.log('📐 Pré-processamento: ângulo desprezível, sem rotação aplicada.');
+      }
+    } catch (deskewError) {
+      console.log('⚠️ Falha ao aplicar deskew avançado:', deskewError.message);
+    }
+
+    const encoded = encode(deskewedImage, { format: 'png' });
+    const deskewedBuffer = Buffer.from(encoded);
+
+    const { data } = await sharp(deskewedBuffer)
+      .resize({ width: 1400, height: null, withoutEnlargement: false })
       .greyscale()
-      .normalize()
-      .sharpen()
+      .clahe({ width: 256, height: 256 })
+      .median(3)
+      .sharpen({ sigma: 1.0 })
+      .normalise()
+      .threshold(175)
       .png({ quality: 100 })
-      .toFile(outputPath);
-    
-    console.log('✅ Imagem pré-processada:', outputPath);
+      .toBuffer({ resolveWithObject: true });
+
+    await fs.writeFile(outputPath, data);
+    console.log('✅ Imagem pré-processada (nível perícia):', outputPath);
+
+    const debugPath = outputPath.replace(/\.png$/i, `_debug_${Date.now()}.png`);
+    await fs.writeFile(debugPath, data);
+    console.log('🗂️ Imagem pré-processada salva para depuração em:', debugPath);
+
     return outputPath;
   } catch (error) {
-    console.log('⚠️ Erro no pré-processamento, usando imagem original:', error.message);
+    console.log('⚠️ Erro no pré-processamento avançado, usando fallback:', error.message);
     console.error('⚠️ Detalhes do erro:', error);
-    return null;
+    try {
+      await sharp(imagePathOrBuffer)
+        .resize({ width: 1200, height: null, withoutEnlargement: false })
+        .greyscale()
+        .normalize()
+        .sharpen()
+        .png({ quality: 100 })
+        .toFile(outputPath);
+      console.log('✅ Imagem pré-processada (fallback):', outputPath);
+      return outputPath;
+    } catch (fallbackError) {
+      console.error('❌ Falha no fallback de pré-processamento:', fallbackError);
+      return null;
+    }
   }
 }
 
@@ -216,78 +302,64 @@ async function extrairTextoOCR(imagemPath) {
     console.log('🔍 Iniciando OCR com Tesseract...');
     console.log('📁 Tipo de imagem recebida:', typeof imagemPath, Buffer.isBuffer(imagemPath) ? '(Buffer)' : '(String)');
     
-    // Se já é um caminho de arquivo, usar diretamente
+    const tempDir = path.join(__dirname, '../temp');
+    await fs.ensureDir(tempDir);
+
     let imageToProcess = imagemPath;
     let processedPath = null;
-    
-    // Se for buffer ou data URL, salvar temporariamente primeiro
+
     if (Buffer.isBuffer(imagemPath) || (typeof imagemPath === 'string' && imagemPath.startsWith('data:'))) {
-      const tempDir = path.join(__dirname, '../temp');
-      await fs.ensureDir(tempDir);
-      
-      let imageBuffer = imagemPath;
-      if (typeof imagemPath === 'string' && imagemPath.startsWith('data:')) {
-        const base64Data = imagemPath.split(',')[1];
-        imageBuffer = Buffer.from(base64Data, 'base64');
-      }
-      
-      // Salvar buffer temporariamente
       const tempImagePath = path.join(tempDir, `temp_${Date.now()}.png`);
-      await fs.writeFile(tempImagePath, imageBuffer);
-      
-      // Pré-processar imagem
+      await fs.writeFile(tempImagePath, Buffer.isBuffer(imagemPath) ? imagemPath : Buffer.from(imagemPath.split(',')[1], 'base64'));
       processedPath = await preprocessImage(tempImagePath, tempImagePath.replace('.png', '_processed.png'));
       imageToProcess = processedPath || tempImagePath;
     } else if (typeof imagemPath === 'string') {
-      // É um caminho de arquivo, pré-processar
-      const tempDir = path.join(__dirname, '../temp');
-      await fs.ensureDir(tempDir);
       const processedImagePath = path.join(tempDir, `processed_${Date.now()}.png`);
       processedPath = await preprocessImage(imagemPath, processedImagePath);
       imageToProcess = processedPath || imagemPath;
     }
     
-    // Configurações diferentes para tentar (mais opções)
-    const configs = [
-      { psm: '6', name: 'SINGLE_BLOCK' }, // 6 = PSM_SINGLE_BLOCK
-      { psm: '4', name: 'SINGLE_COLUMN' }, // 4 = PSM_SINGLE_COLUMN
-      { psm: '3', name: 'AUTO' }, // 3 = PSM_AUTO
-      { psm: '11', name: 'SPARSE_TEXT' }, // 11 = PSM_SPARSE_TEXT (melhor para números isolados)
-      { psm: '8', name: 'SINGLE_WORD' }, // 8 = PSM_SINGLE_WORD
-      { psm: '5', name: 'SINGLE_BLOCK_VERT_TEXT' } // 5 = PSM_SINGLE_BLOCK_VERT_TEXT
-    ];
-    
-    let bestResult = { text: '', confidence: 0, config: null };
-    
-    for (const config of configs) {
-      try {
-        const { data } = await Tesseract.recognize(imageToProcess, 'por', {
-          logger: m => {
-            if (m.status === 'recognizing text') {
-              console.log(`📝 OCR Progress (PSM ${config.name}): ${Math.round(m.progress * 100)}%`);
-            }
-          },
-          tessedit_pageseg_mode: config.psm,
-          tessedit_char_whitelist: '0123456789.,: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-          // Configurações adicionais para melhorar reconhecimento de números
-          tessedit_ocr_engine_mode: '1' // LSTM only
-        });
-        
-        // Contar números encontrados
-        const numerosEncontrados = (data.text.match(/\d+/g) || []).length;
-        console.log(`📊 OCR Confiança (PSM ${config.name}): ${data.confidence}% | Texto: ${data.text.length} chars | Números: ${numerosEncontrados}`);
-        
-        // Priorizar resultados com mais números (mesmo que confiança seja menor)
-        const score = data.confidence + (numerosEncontrados * 2); // Bonus por números encontrados
-        const bestScore = bestResult.confidence + (((bestResult.text || '').match(/\d+/g) || []).length * 2);
-        
-        if (score > bestScore || (score === bestScore && data.confidence > bestResult.confidence)) {
-          bestResult = { ...data, config: config.name };
-        }
-      } catch (configError) {
-        console.log(`⚠️ Erro com configuração PSM ${config.name}:`, configError.message);
-      }
+    const executarOCR = async (psm, label) => {
+      const { data } = await Tesseract.recognize(imageToProcess, 'por', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            console.log(`📝 OCR Progress (PSM ${label}): ${Math.round(m.progress * 100)}%`);
+          }
+        },
+        tessedit_pageseg_mode: psm,
+        tessedit_char_whitelist: '0123456789.,: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+        tessedit_ocr_engine_mode: '1'
+      });
+
+      const numerosEncontrados = (data.text.match(/\d+/g) || []).length;
+      console.log(`📊 OCR Confiança (PSM ${label}): ${data.confidence}% | Texto: ${data.text.length} chars | Números: ${numerosEncontrados}`);
+
+      return {
+        label,
+        text: data.text || '',
+        confidence: data.confidence || 0,
+        numerosEncontrados,
+        raw: data
+      };
+    };
+
+    const [resultadoAuto, resultadoBloco] = await Promise.all([
+      executarOCR('3', 'AUTO'),
+      executarOCR('6', 'SINGLE_BLOCK')
+    ]);
+
+    const concordancia = calcularConcordanciaTextual(resultadoAuto.text, resultadoBloco.text);
+    console.log(`🤝 Concordância entre execuções: ${(concordancia * 100).toFixed(1)}%`);
+
+    let melhorResultado = resultadoAuto;
+    const scoreAuto = resultadoAuto.confidence + (resultadoAuto.numerosEncontrados * 2);
+    const scoreBloco = resultadoBloco.confidence + (resultadoBloco.numerosEncontrados * 2);
+
+    if (scoreBloco > scoreAuto || (scoreBloco === scoreAuto && resultadoBloco.text.length > resultadoAuto.text.length)) {
+      melhorResultado = resultadoBloco;
     }
+
+    console.log(`🏆 Resultado escolhido: ${melhorResultado.label} (conf=${melhorResultado.confidence.toFixed(1)} | tokens=${melhorResultado.numerosEncontrados})`);
     
     // Limpar arquivos temporários
     try {
@@ -318,18 +390,32 @@ async function extrairTextoOCR(imagemPath) {
     }
     
     console.log('✅ Melhor resultado OCR:', {
-      confidence: bestResult.confidence,
-      textLength: bestResult.text.length,
-      config: bestResult.config,
-      textPreview: bestResult.text.substring(0, 200)
+      confidence: melhorResultado.confidence,
+      textLength: melhorResultado.text.length,
+      config: melhorResultado.label,
+      agreement: concordancia,
+      textPreview: (melhorResultado.text || '').substring(0, 200)
     });
     
     return {
-      text: bestResult.text.trim(),
-      confidence: Math.round(bestResult.confidence),
-      confidenceRaw: Math.round(bestResult.confidence),
+      text: (melhorResultado.text || '').trim(),
+      confidence: Math.round(melhorResultado.confidence),
+      confidenceRaw: Math.round(melhorResultado.confidence),
       status: 'success',
-      config: bestResult.config
+      config: melhorResultado.label,
+      agreement: concordancia,
+      ensemble: {
+        auto: {
+          confidence: resultadoAuto.confidence,
+          textLength: resultadoAuto.text.length,
+          numeros: resultadoAuto.numerosEncontrados
+        },
+        singleBlock: {
+          confidence: resultadoBloco.confidence,
+          textLength: resultadoBloco.text.length,
+          numeros: resultadoBloco.numerosEncontrados
+        }
+      }
     };
     
   } catch (erro) {
@@ -339,7 +425,8 @@ async function extrairTextoOCR(imagemPath) {
       confidence: 0,
       confidenceRaw: 0,
       status: 'error',
-      error: erro.message
+      error: erro.message,
+      agreement: 0
     };
   }
 }
@@ -841,12 +928,14 @@ function calcularConfianca(ocrResult, visionResult, dadosExtraidos) {
   }
   
   // Se não temos dados, usar confiança baseada apenas no OCR (muito baixa)
-  const confiancaOCR = (ocrResult.confidence || 0) * 0.1; // Reduzir peso do OCR quando não há dados
+  const agreementFactor = typeof ocrResult.agreement === 'number' ? (0.5 + (ocrResult.agreement * 0.5)) : 1;
+  const confiancaOCR = (ocrResult.confidence || 0) * 0.1 * agreementFactor; // Reduzir peso do OCR quando não há dados
   confianca = Math.min(confiancaOCR, 20); // Máximo 20% se não há dados
   
   console.log('📊 Cálculo de confiança (SEM DADOS):', {
     confiancaOCR: Math.round(confiancaOCR),
-    confiancaTotal: Math.round(confianca)
+    confiancaTotal: Math.round(confianca),
+    agreementFactor: agreementFactor.toFixed(2)
   });
   
   return Math.round(confianca);
@@ -981,7 +1070,8 @@ async function analisarImagemTeste(imagemPath, testType) {
     console.log('✅ Análise concluída:', {
       dadosExtraidos,
       confiancaIA,
-      textoExtraido: ocrResult.text.length
+      textoExtraido: ocrResult.text.length,
+      ocrAgreement: ocrResult.agreement
     });
     
     return {
@@ -992,7 +1082,9 @@ async function analisarImagemTeste(imagemPath, testType) {
         ocrConfidence: ocrResult.confidence,
         textLength: ocrResult.text.length,
         textPreview: ocrResult.text.substring(0, 200),
-        config: ocrResult.config
+        config: ocrResult.config,
+        agreementScore: ocrResult.agreement,
+        ensemble: ocrResult.ensemble
       }
     };
     
