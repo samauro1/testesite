@@ -9,6 +9,9 @@
  */
 
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs-extra');
 const { query } = require('../config/database');
 const { calcularPalografico } = require('../utils/calculadoras');
 const {
@@ -23,6 +26,22 @@ const {
 } = require('../utils/palograficoCalculator');
 
 const router = express.Router();
+
+// Configurar multer para upload de imagens (armazenamento em memória)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de arquivo não permitido. Use JPG, PNG ou PDF.'));
+    }
+  }
+});
 
 /**
  * POST /api/palografico/calcular
@@ -167,6 +186,192 @@ router.get('/tabelas', async (req, res) => {
       success: false,
       error: 'Erro interno do servidor',
       message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/palografico/analisar-ia
+ * Analisa imagem do teste Palográfico usando Inteligência Artificial
+ * 
+ * FormData:
+ * - imagem: Arquivo de imagem (JPG, PNG, PDF)
+ * - regiao: Região do examinando
+ * - sexo: Sexo do examinando
+ * - escolaridade: Escolaridade do examinando
+ * - idade: Idade do examinando
+ * - contexto: Contexto de aplicação
+ */
+router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
+  try {
+    console.log('📤 Recebida requisição de análise IA para Palográfico');
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nenhuma imagem foi enviada',
+        analise_ia: { dados_extraidos: {}, confianca: 0 }
+      });
+    }
+    
+    // Extrair dados da requisição
+    const { regiao, sexo, escolaridade, idade, contexto } = req.body;
+    
+    console.log('📋 Dados da requisição:', {
+      regiao, sexo, escolaridade, idade, contexto,
+      arquivo: req.file.originalname,
+      tamanho: req.file.size
+    });
+    
+    // Salvar imagem temporariamente
+    const tempDir = path.join(__dirname, '../temp');
+    await fs.ensureDir(tempDir);
+    const tempImagePath = path.join(tempDir, `temp_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_')}`);
+    await fs.writeFile(tempImagePath, req.file.buffer);
+    
+    console.log('💾 Imagem salva temporariamente:', tempImagePath);
+    
+    // Analisar imagem com IA
+    let analiseResult;
+    try {
+      const { analisarImagemTeste } = require('../utils/aiAnalyzer');
+      console.log('🔍 Chamando analisarImagemTeste com:', tempImagePath);
+      analiseResult = await analisarImagemTeste(tempImagePath, 'palografico');
+      console.log('🤖 Resultado da análise IA:', JSON.stringify(analiseResult, null, 2));
+    } catch (analiseError) {
+      console.error('❌ Erro ao chamar analisarImagemTeste:', analiseError);
+      console.error('❌ Stack:', analiseError.stack);
+      throw analiseError; // Re-lançar para ser capturado pelo catch externo
+    }
+    
+    // Limpar arquivo temporário
+    try {
+      if (await fs.pathExists(tempImagePath)) {
+        await fs.unlink(tempImagePath);
+      }
+      // Também limpar imagem processada se existir
+      const processedPath = tempImagePath.replace(/\.(jpg|jpeg|png)$/i, '_processed.png');
+      if (await fs.pathExists(processedPath)) {
+        await fs.unlink(processedPath);
+      }
+    } catch (cleanupError) {
+      console.log('⚠️ Erro ao limpar arquivos temporários:', cleanupError.message);
+    }
+    
+    const dadosExtraidos = analiseResult.dadosExtraidos || {};
+    const confiancaIA = analiseResult.confiancaIA || 0;
+    
+    // Verificar se temos dados suficientes para calcular automaticamente
+    const temDadosSuficientes = (
+      (dadosExtraidos.tempos && dadosExtraidos.tempos.length === 5) ||
+      dadosExtraidos.produtividade ||
+      dadosExtraidos.nor
+    );
+    
+    console.log('📊 Avaliação dos dados:', {
+      temDadosSuficientes,
+      confiancaIA,
+      dadosExtraidos
+    });
+    
+    // Se temos dados suficientes E confiança alta, calcular automaticamente
+    if (temDadosSuficientes && confiancaIA >= 70) {
+      console.log('✅ Calculando resultado automaticamente...');
+      
+      try {
+        const resultado = await calcularPalografico(null, {
+          ...dadosExtraidos,
+          regiao,
+          sexo,
+          escolaridade,
+          idade: idade ? parseInt(idade) : null,
+          contexto: contexto || 'transito'
+        });
+        
+        console.log('📈 Resultado calculado:', resultado);
+        
+        return res.json({
+          success: true,
+          data: resultado,
+          analise_ia: {
+            dados_extraidos: dadosExtraidos,
+            confianca: confiancaIA,
+            texto_extraido: analiseResult.ocr_extracted_text,
+            calculo_automatico: true,
+            debug: analiseResult.debug
+          },
+          message: `Dados extraídos automaticamente com ${confiancaIA}% de confiança`
+        });
+        
+      } catch (calcError) {
+        console.error('❌ Erro no cálculo automático:', calcError);
+        
+        return res.json({
+          success: false,
+          analise_ia: {
+            dados_extraidos: dadosExtraidos,
+            confianca: confiancaIA,
+            texto_extraido: analiseResult.ocr_extracted_text,
+            calculo_automatico: false,
+            debug: analiseResult.debug
+          },
+          message: 'Dados extraídos, mas erro no cálculo automático. Verifique os dados e calcule manualmente.',
+          erro_calculo: calcError.message
+        });
+      }
+    }
+    
+    // Se temos alguns dados mas confiança baixa, retornar para preenchimento assistido
+    else if (temDadosSuficientes && confiancaIA >= 30) {
+      console.log('⚠️ Dados extraídos com confiança média, requer verificação');
+      
+      return res.json({
+        success: false,
+        analise_ia: {
+          dados_extraidos: dadosExtraidos,
+          confianca: confiancaIA,
+          texto_extraido: analiseResult.ocr_extracted_text,
+          calculo_automatico: false,
+          debug: analiseResult.debug
+        },
+        message: `Dados extraídos com ${confiancaIA}% de confiança. Verifique os valores preenchidos e clique em "Calcular" se estiverem corretos.`,
+        preenchimento_assistido: true
+      });
+    }
+    
+    // Se não temos dados suficientes ou confiança muito baixa
+    else {
+      console.log('❌ Dados insuficientes ou confiança muito baixa');
+      
+      return res.json({
+        success: false,
+        analise_ia: {
+          dados_extraidos: dadosExtraidos,
+          confianca: confiancaIA,
+          texto_extraido: analiseResult.ocr_extracted_text,
+          calculo_automatico: false,
+          debug: analiseResult.debug
+        },
+        message: confiancaIA < 30 
+          ? 'Não foi possível extrair dados confiáveis da imagem. Por favor, preencha os dados manualmente.'
+          : 'Dados parciais extraídos. Complete as informações faltantes e clique em "Calcular".',
+        erro: analiseResult.erro
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro na rota de análise IA:', error);
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Erro interno no servidor durante análise da imagem',
+      analise_ia: {
+        dados_extraidos: {},
+        confianca: 0,
+        texto_extraido: '',
+        debug: { erro: error.message }
+      },
+      erro: error.message
     });
   }
 });

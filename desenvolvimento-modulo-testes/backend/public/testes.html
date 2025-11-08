@@ -156,6 +156,22 @@
             animation: slideIn 0.4s ease-out;
         }
 
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .campo-preenchido-ia {
+            background-color: #e8f5e8 !important;
+            border-color: #28a745 !important;
+        }
+
+        .campo-verificar-ia {
+            background-color: #fff3cd !important;
+            border-color: #ffc107 !important;
+        }
+
         @keyframes slideIn {
             from {
                 opacity: 0;
@@ -480,70 +496,329 @@
 
                     <!-- Palográfico Form -->
                     <div id="palograficoFormManual" style="display: none;">
-                        <h3>Palos por Minuto (5 minutos)</h3>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Minuto 1:</label>
-                                <input type="number" id="tempo1" min="0" value="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Minuto 2:</label>
-                                <input type="number" id="tempo2" min="0" value="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Minuto 3:</label>
-                                <input type="number" id="tempo3" min="0" value="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Minuto 4:</label>
-                                <input type="number" id="tempo4" min="0" value="0">
-                            </div>
-                            <div class="form-group">
-                                <label>Minuto 5:</label>
-                                <input type="number" id="tempo5" min="0" value="0">
+                        <!-- Modo de Análise -->
+                        <div style="background: #f0f4ff; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin-bottom: 30px;">
+                            <h3 style="color: #667eea; margin-bottom: 15px;">📋 Modo de Análise</h3>
+                            <div style="display: flex; gap: 20px; align-items: center;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="radio" name="palograficoModo" value="manual" checked style="margin-right: 8px;">
+                                    <span>📝 Entrada Manual (Roteiro Completo)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="radio" name="palograficoModo" value="ia" style="margin-right: 8px;">
+                                    <span>🤖 Análise por IA (Upload de Imagem)</span>
+                                </label>
                             </div>
                         </div>
-                        <h3 style="margin-top: 30px;">Tamanhos dos Palos (mm) - Opcional</h3>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Maiores Palos (separados por vírgula):</label>
-                                <input type="text" id="tamanhosMaiores" placeholder="10.5, 11.2, 10.8">
+
+                        <!-- Seção: Entrada Manual -->
+                        <div id="palograficoManual" style="display: block;">
+                            <h3 style="color: #667eea; margin-bottom: 20px;">📝 Roteiro Completo - Entrada Manual</h3>
+                            
+                            <!-- 1. Produtividade e NOR -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">1. Produtividade e NOR</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Palos por Minuto 1:</label>
+                                        <input type="number" id="tempo1" min="0" value="0" placeholder="Ex: 150">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Palos por Minuto 2:</label>
+                                        <input type="number" id="tempo2" min="0" value="0" placeholder="Ex: 152">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Palos por Minuto 3:</label>
+                                        <input type="number" id="tempo3" min="0" value="0" placeholder="Ex: 148">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Palos por Minuto 4:</label>
+                                        <input type="number" id="tempo4" min="0" value="0" placeholder="Ex: 151">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Palos por Minuto 5:</label>
+                                        <input type="number" id="tempo5" min="0" value="0" placeholder="Ex: 149">
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top: 15px;">
+                                    <div class="form-group">
+                                        <label>Produtividade Total (calculado automaticamente ou informe):</label>
+                                        <input type="number" id="produtividade" min="0" placeholder="Será calculado automaticamente">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>NOR - Nível Oscilação Rítmica (calculado automaticamente ou informe):</label>
+                                        <input type="number" id="nor" step="0.1" placeholder="Será calculado automaticamente">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Menores Palos (separados por vírgula):</label>
-                                <input type="text" id="tamanhosMenores" placeholder="8.5, 9.0, 8.7">
+
+                            <!-- 2. Tamanho dos Palos -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">2. Tamanho dos Palos (mm)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Maiores Palos (separados por vírgula):</label>
+                                        <input type="text" id="tamanhosMaiores" placeholder="Ex: 12.5, 13.0, 12.8, 13.2, 12.9">
+                                        <small style="color: #666;">Medir os 5 maiores palos em mm</small>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Menores Palos (separados por vírgula):</label>
+                                        <input type="text" id="tamanhosMenores" placeholder="Ex: 8.5, 8.8, 8.6, 8.9, 8.7">
+                                        <small style="color: #666;">Medir os 5 menores palos em mm</small>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="margin-top: 15px;">
+                                    <div class="form-group">
+                                        <label>Média Tamanho Palos (calculado automaticamente ou informe):</label>
+                                        <input type="number" id="mediaTamanhoPalos" step="0.1" placeholder="Será calculado automaticamente">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Distância entre Palos -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">3. Distância entre Palos (mm)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Distância Total Percorrida (mm):</label>
+                                        <input type="number" id="distanciaTotal" step="0.01" placeholder="Ex: 2500.00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Distância Média (calculado automaticamente ou informe):</label>
+                                        <input type="number" id="distanciaMedia" step="0.01" placeholder="Será calculado automaticamente">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 4. Impulsividade -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">4. Impulsividade (mm)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Impulsividade (diferença entre maior e menor palo):</label>
+                                        <input type="number" id="impulsividade" step="0.1" placeholder="Ex: 4.7">
+                                        <small style="color: #666;">Maior palo - Menor palo</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 5. Distância entre Linhas -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">5. Distância entre Linhas (mm)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Média Distância entre Linhas:</label>
+                                        <input type="number" id="mediaDistanciaLinhas" step="0.01" placeholder="Ex: 8.0">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 6. Margens -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">6. Margens (mm)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Média Margem Esquerda:</label>
+                                        <input type="number" id="mediaMargemEsquerda" step="0.01" placeholder="Ex: 20.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Média Margem Direita:</label>
+                                        <input type="number" id="mediaMargemDireita" step="0.01" placeholder="Ex: 15.0">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Média Margem Superior:</label>
+                                        <input type="number" id="mediaMargemSuperior" step="0.01" placeholder="Ex: 25.0">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 7. Porcentagem de Ganchos -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">7. Porcentagem de Ganchos (%)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Porcentagem de Ganchos:</label>
+                                        <input type="number" id="porcentagemGanchos" step="0.1" min="0" max="100" placeholder="Ex: 5.2">
+                                        <small style="color: #666;">(Número de palos com ganchos / Total de palos) × 100</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 8. Inclinação -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">8. Inclinação (graus)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Média Inclinação dos Palos:</label>
+                                        <input type="number" id="mediaInclinacao" step="0.1" placeholder="Ex: 2.5">
+                                        <small style="color: #666;">0° = Vertical, >0° = Direita, <0° = Esquerda</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 9. Direção das Linhas -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">9. Direção das Linhas</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Média Direção das Linhas:</label>
+                                        <input type="number" id="mediaDirecaoLinhas" step="0.1" placeholder="Ex: 0.0">
+                                        <small style="color: #666;">>0 = Ascendente, 0 = Horizontal, <0 = Descendente</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 10. Emotividade (Irregularidades) -->
+                            <div style="background: #f9f9f9; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #333; margin-bottom: 15px;">10. Emotividade - Irregularidades (0-8)</h4>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px;">
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrInclinacao" style="margin-right: 8px;">
+                                        <span>Inclinação Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrPressao" style="margin-right: 8px;">
+                                        <span>Pressão Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrTamanho" style="margin-right: 8px;">
+                                        <span>Tamanho Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrDistanciaPalos" style="margin-right: 8px;">
+                                        <span>Distância entre Palos Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrGeneralizadas" style="margin-right: 8px;">
+                                        <span>Irregularidades Generalizadas</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrDistanciaLinhas" style="margin-right: 8px;">
+                                        <span>Distância entre Linhas Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrAlinhamento" style="margin-right: 8px;">
+                                        <span>Alinhamento Irregular</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center;">
+                                        <input type="checkbox" id="irrGanhos" style="margin-right: 8px;">
+                                        <span>Ganchos Excessivos</span>
+                                    </label>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Total Emotividade (calculado automaticamente ou informe):</label>
+                                        <input type="number" id="totalEmotividade" min="0" max="8" placeholder="Será calculado automaticamente">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dados do Examinando -->
+                            <div style="background: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <h4 style="color: #2e7d32; margin-bottom: 15px;">📋 Dados do Examinando</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Região:</label>
+                                        <select id="palograficoRegiao">
+                                            <option value="Sudeste" selected>Sudeste</option>
+                                            <option value="Nordeste">Nordeste</option>
+                                            <option value="Sul">Sul</option>
+                                            <option value="Norte">Norte</option>
+                                            <option value="Centro-Oeste">Centro-Oeste</option>
+                                            <option value="Total">Total</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Sexo:</label>
+                                        <select id="palograficoSexo">
+                                            <option value="M">Masculino</option>
+                                            <option value="F">Feminino</option>
+                                            <option value="Ambos">Ambos</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Escolaridade:</label>
+                                        <select id="palograficoEscolaridade">
+                                            <option value="Fundamental">Fundamental</option>
+                                            <option value="Médio">Médio</option>
+                                            <option value="Superior" selected>Superior</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Idade:</label>
+                                        <input type="number" id="palograficoIdade" min="18" max="64" placeholder="Ex: 35">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Distância Total (mm) - Opcional:</label>
-                                <input type="number" id="distanciaTotal" step="0.01" placeholder="0">
+
+                        <!-- Seção: Análise por IA -->
+                        <div id="palograficoIA" style="display: none;">
+                            <h3 style="color: #667eea; margin-bottom: 20px;">🤖 Análise por Inteligência Artificial</h3>
+                            <div style="background: #e3f2fd; border: 2px solid #2196f3; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                                <p style="color: #1565c0; margin-bottom: 15px;">
+                                    <strong>✨ Análise Automática Ativa</strong><br>
+                                    Faça upload da imagem do teste Palográfico e a IA analisará automaticamente:
+                                </p>
+                                <ul style="color: #1565c0; margin-left: 20px;">
+                                    <li>✅ Extração automática de palos por minuto (5 valores)</li>
+                                    <li>✅ Cálculo automático de produtividade total</li>
+                                    <li>✅ Extração de NOR (Nível de Oscilação Rítmica)</li>
+                                    <li>✅ Detecção de tamanhos e distâncias (quando visíveis)</li>
+                                    <li>✅ Preenchimento automático do formulário</li>
+                                </ul>
                             </div>
-                            <div class="form-group">
-                                <label>Região:</label>
-                                <select id="palograficoRegiao">
-                                    <option value="Sudeste" selected>Sudeste</option>
-                                    <option value="Sul">Sul</option>
-                                    <option value="Nordeste">Nordeste</option>
-                                    <option value="Norte">Norte</option>
-                                    <option value="Centro-oeste">Centro-Oeste</option>
-                                    <option value="Geral">Geral</option>
-                                </select>
+                            <div class="form-row">
+                                <div class="form-group" style="flex: 1;">
+                                    <label>Upload da Imagem do Teste:</label>
+                                    <input type="file" id="palograficoImagem" accept="image/*" style="padding: 10px; border: 2px dashed #667eea; border-radius: 8px; width: 100%;">
+                                    <small style="color: #666;">Formatos aceitos: JPG, PNG, PDF (até 10MB)</small>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Sexo:</label>
-                                <select id="palograficoSexo">
-                                    <option value="M">Masculino</option>
-                                    <option value="F">Feminino</option>
-                                </select>
+                            <div id="statusAnaliseIA" class="status-analise" style="background: #f5f5f5; border-radius: 8px; padding: 15px; margin-top: 15px; text-align: center; color: #666; display: none;">
+                                Aguardando upload de imagem...
                             </div>
-                            <div class="form-group">
-                                <label>Escolaridade:</label>
-                                <select id="palograficoEscolaridade">
-                                    <option value="Fundamental">Fundamental</option>
-                                    <option value="Médio">Médio</option>
-                                    <option value="Superior" selected>Superior</option>
-                                </select>
+                            <!-- Área de debug (opcional) -->
+                            <div class="mt-3" style="display: none; margin-top: 15px;" id="debug-container">
+                                <label for="debug-texto-extraido" style="font-weight: bold; color: #666;">Texto Extraído (Debug)</label>
+                                <textarea id="debug-texto-extraido" class="form-control" rows="4" readonly 
+                                          placeholder="Texto extraído da imagem aparecerá aqui..." style="font-size: 11px; font-family: monospace; margin-top: 5px;"></textarea>
+                            </div>
+                            <div style="background: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; padding: 20px; margin-top: 20px;">
+                                <h4 style="color: #2e7d32; margin-bottom: 15px;">📋 Dados do Examinando (para seleção da tabela normativa)</h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Região:</label>
+                                        <select id="palograficoRegiaoIA">
+                                            <option value="Sudeste" selected>Sudeste</option>
+                                            <option value="Nordeste">Nordeste</option>
+                                            <option value="Sul">Sul</option>
+                                            <option value="Norte">Norte</option>
+                                            <option value="Centro-Oeste">Centro-Oeste</option>
+                                            <option value="Total">Total</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Sexo:</label>
+                                        <select id="palograficoSexoIA">
+                                            <option value="M">Masculino</option>
+                                            <option value="F">Feminino</option>
+                                            <option value="Ambos">Ambos</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Escolaridade:</label>
+                                        <select id="palograficoEscolaridadeIA">
+                                            <option value="Fundamental">Fundamental</option>
+                                            <option value="Médio">Médio</option>
+                                            <option value="Superior" selected>Superior</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Idade:</label>
+                                        <input type="number" id="palograficoIdadeIA" min="18" max="64" placeholder="Ex: 35">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -950,8 +1225,206 @@
                 setTimeout(() => carregarTabelasBPA2(), 100);
             }
             
+            // Configurar alternância de modo para Palográfico
+            if (selectedTest === 'palografico') {
+                setTimeout(() => {
+                    configurarModoPalografico();
+                    calcularValoresAutomaticosPalografico();
+                    configurarUploadImagemPalografico();
+                }, 100);
+            }
+            
             // Outros testes (por enquanto sem formulários específicos, mas preparados)
             // TODO: Adicionar formulários para BETA-III, MEMORE, MIG, MVT, R-1
+        }
+
+        // Configurar alternância entre modo manual e IA para Palográfico
+        function configurarModoPalografico() {
+            const radios = document.querySelectorAll('input[name="palograficoModo"]');
+            const manualDiv = document.getElementById('palograficoManual');
+            const iaDiv = document.getElementById('palograficoIA');
+            
+            radios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'manual') {
+                        manualDiv.style.display = 'block';
+                        iaDiv.style.display = 'none';
+                    } else {
+                        manualDiv.style.display = 'none';
+                        iaDiv.style.display = 'block';
+                    }
+                });
+            });
+        }
+
+        // Calcular valores automaticamente para Palográfico quando possível
+        function calcularValoresAutomaticosPalografico() {
+            // Calcular Produtividade e NOR quando tempos mudarem
+            const tempoInputs = ['tempo1', 'tempo2', 'tempo3', 'tempo4', 'tempo5'];
+            tempoInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', calcularProdutividadeENOR);
+                }
+            });
+
+            // Calcular Tamanho Médio quando tamanhos mudarem
+            const tamanhoInputs = ['tamanhosMaiores', 'tamanhosMenores'];
+            tamanhoInputs.forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', calcularTamanhoMedio);
+                }
+            });
+
+            // Calcular Distância Média quando distância total mudar
+            const distanciaInput = document.getElementById('distanciaTotal');
+            if (distanciaInput) {
+                distanciaInput.addEventListener('input', calcularDistanciaMedia);
+            }
+
+            // Calcular Emotividade quando checkboxes mudarem
+            const irregularidadeCheckboxes = [
+                'irrInclinacao', 'irrPressao', 'irrTamanho', 'irrDistanciaPalos',
+                'irrGeneralizadas', 'irrDistanciaLinhas', 'irrAlinhamento', 'irrGanhos'
+            ];
+            irregularidadeCheckboxes.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox) {
+                    checkbox.addEventListener('change', calcularEmotividade);
+                }
+            });
+        }
+
+        // Calcular Produtividade e NOR automaticamente
+        function calcularProdutividadeENOR() {
+            const tempos = [
+                parseInt(document.getElementById('tempo1').value) || 0,
+                parseInt(document.getElementById('tempo2').value) || 0,
+                parseInt(document.getElementById('tempo3').value) || 0,
+                parseInt(document.getElementById('tempo4').value) || 0,
+                parseInt(document.getElementById('tempo5').value) || 0
+            ];
+            
+            const produtividade = tempos.reduce((a, b) => a + b, 0);
+            const produtividadeInput = document.getElementById('produtividade');
+            if (produtividadeInput && !produtividadeInput.value) {
+                produtividadeInput.value = produtividade;
+            }
+
+            // Calcular NOR
+            if (produtividade > 0) {
+                const diferencas = [];
+                for (let i = 1; i < tempos.length; i++) {
+                    diferencas.push(Math.abs(tempos[i] - tempos[i-1]));
+                }
+                const somaDiferencas = diferencas.reduce((a, b) => a + b, 0);
+                // Fórmula conforme manual: (soma das diferenças × 100) / produtividade
+                const nor = (somaDiferencas * 100) / produtividade;
+                const norInput = document.getElementById('nor');
+                if (norInput && !norInput.value) {
+                    // Arredondar para 1 casa decimal conforme manual
+                    norInput.value = Math.round(nor * 10) / 10;
+                }
+            }
+        }
+
+        // Calcular Tamanho Médio automaticamente
+        function calcularTamanhoMedio() {
+            const maioresStr = document.getElementById('tamanhosMaiores').value;
+            const menoresStr = document.getElementById('tamanhosMenores').value;
+            
+            if (maioresStr && menoresStr) {
+                const maiores = maioresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+                const menores = menoresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+                
+                if (maiores.length > 0 && menores.length > 0) {
+                    const mediaGrandes = maiores.reduce((a, b) => a + b, 0) / maiores.length;
+                    const mediaMenores = menores.reduce((a, b) => a + b, 0) / menores.length;
+                    const mediaTotal = (mediaGrandes + mediaMenores) / 2;
+                    
+                    const mediaInput = document.getElementById('mediaTamanhoPalos');
+                    if (mediaInput && !mediaInput.value) {
+                        mediaInput.value = Math.round(mediaTotal * 10) / 10;
+                    }
+
+                    // Calcular Impulsividade
+                    const maiorValor = Math.max(...maiores);
+                    const menorValor = Math.min(...menores);
+                    const impulsividadeInput = document.getElementById('impulsividade');
+                    if (impulsividadeInput && !impulsividadeInput.value) {
+                        impulsividadeInput.value = Math.round((maiorValor - menorValor) * 10) / 10;
+                    }
+                }
+            }
+        }
+
+        // Calcular Distância Média automaticamente
+        function calcularDistanciaMedia() {
+            const distanciaTotal = parseFloat(document.getElementById('distanciaTotal').value);
+            const produtividade = parseInt(document.getElementById('produtividade').value);
+            
+            if (distanciaTotal && produtividade > 0) {
+                const distanciaMedia = distanciaTotal / produtividade;
+                const distanciaMediaInput = document.getElementById('distanciaMedia');
+                if (distanciaMediaInput && !distanciaMediaInput.value) {
+                    distanciaMediaInput.value = Math.round(distanciaMedia * 100) / 100;
+                }
+            }
+        }
+
+        // Calcular Emotividade automaticamente
+        function calcularEmotividade() {
+            const irregularidades = [
+                'irrInclinacao', 'irrPressao', 'irrTamanho', 'irrDistanciaPalos',
+                'irrGeneralizadas', 'irrDistanciaLinhas', 'irrAlinhamento', 'irrGanhos'
+            ];
+            
+            let contador = 0;
+            irregularidades.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox && checkbox.checked) {
+                    contador++;
+                }
+            });
+            
+            const emotividadeInput = document.getElementById('totalEmotividade');
+            if (emotividadeInput && !emotividadeInput.value) {
+                emotividadeInput.value = contador;
+            }
+        }
+
+        // Configurar upload de imagem para análise automática
+        function configurarUploadImagemPalografico() {
+            const imagemInput = document.getElementById('palograficoImagem');
+            const statusDiv = document.getElementById('statusAnaliseIA');
+            
+            if (imagemInput) {
+                imagemInput.addEventListener('change', async function(e) {
+                    const arquivo = e.target.files[0];
+                    if (!arquivo) return;
+                    
+                    // Verificar tamanho
+                    const tamanhoMB = (arquivo.size / 1024 / 1024).toFixed(2);
+                    if (tamanhoMB > 10) {
+                        if (statusDiv) {
+                            statusDiv.textContent = `❌ Imagem muito grande (${tamanhoMB}MB). Máximo: 10MB.`;
+                            statusDiv.style.display = 'block';
+                            statusDiv.style.background = '#f8d7da';
+                            statusDiv.style.color = '#721c24';
+                        }
+                        return;
+                    }
+                    
+                    // Mostrar preview e iniciar análise
+                    if (statusDiv) {
+                        statusDiv.style.display = 'block';
+                        statusDiv.textContent = '📸 Imagem carregada. Clique em "Calcular" para analisar.';
+                        statusDiv.style.background = '#d1ecf1';
+                        statusDiv.style.color = '#0c5460';
+                    }
+                });
+            }
         }
 
         // Carregar tabelas normativas para BPA-2
@@ -1132,6 +1605,13 @@
                     
                     // Analisar imagem
                     try {
+                        // Verificar tamanho da imagem antes de enviar
+                        const tamanhoMB = (base64Image.length * 3 / 4 / 1024 / 1024).toFixed(2);
+                        if (tamanhoMB > 10) {
+                            document.getElementById('imageStatus').textContent = `❌ Imagem muito grande (${tamanhoMB}MB). Máximo: 10MB. Por favor, redimensione a imagem.`;
+                            return;
+                        }
+
                         const response = await fetch(`${API_BASE}/api/imagem/analisar-base64`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1141,19 +1621,41 @@
                             })
                         });
                         
+                        // Verificar se a resposta é OK antes de tentar parsear JSON
+                        if (!response.ok) {
+                            let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+                            if (response.status === 413) {
+                                errorMessage = 'Imagem muito grande. Por favor, redimensione a imagem para menos de 10MB.';
+                            } else {
+                                try {
+                                    const errorData = await response.json();
+                                    errorMessage = errorData.error || errorData.message || errorMessage;
+                                } catch (e) {
+                                    const text = await response.text();
+                                    if (text && !text.startsWith('<!DOCTYPE')) {
+                                        errorMessage = text.substring(0, 200);
+                                    }
+                                }
+                            }
+                            document.getElementById('imageStatus').textContent = '❌ Erro: ' + errorMessage;
+                            return;
+                        }
+                        
                         const data = await response.json();
                         
                         if (data.success) {
                             const resultado = data.data;
                             document.getElementById('imageStatus').innerHTML = `
-                                ✅ Análise concluída! Confiança: ${resultado.confiancaIA}%<br>
-                                📊 Dados extraídos: ${JSON.stringify(resultado.dadosExtraidos, null, 2)}
+                                ✅ Análise concluída! Confiança: ${resultado.confiancaIA || 'N/A'}%<br>
+                                📊 Dados extraídos: ${JSON.stringify(resultado.dadosExtraidos || {}, null, 2)}
                             `;
                             
                             // Preencher formulário automaticamente
-                            preencherFormularioComDados(resultado.dadosExtraidos);
+                            if (resultado.dadosExtraidos) {
+                                preencherFormularioComDados(resultado.dadosExtraidos);
+                            }
                         } else {
-                            document.getElementById('imageStatus').textContent = '❌ Erro: ' + (data.error || data.message);
+                            document.getElementById('imageStatus').textContent = '❌ Erro: ' + (data.error || data.message || 'Erro desconhecido');
                         }
                     } catch (error) {
                         console.error('Erro ao analisar:', error);
@@ -1164,34 +1666,356 @@
             }
         });
         
-        // Preencher formulário com dados extraídos
-        function preencherFormularioComDados(dados) {
+        // Função melhorada de preenchimento do formulário
+        function preencherFormularioComDados(dados, confianca = 0) {
+            console.log('📝 Preenchendo formulário com dados extraídos:', dados, 'Confiança:', confianca);
+            
             if (selectedTest === 'ac') {
                 if (dados.acertos) document.getElementById('acertos').value = dados.acertos;
                 if (dados.erros) document.getElementById('erros').value = dados.erros;
                 if (dados.omissoes) document.getElementById('omissoes').value = dados.omissoes;
             } else if (selectedTest === 'palografico') {
-                if (dados.tempos && Array.isArray(dados.tempos)) {
-                    document.getElementById('tempo1').value = dados.tempos[0] || 0;
-                    document.getElementById('tempo2').value = dados.tempos[1] || 0;
-                    document.getElementById('tempo3').value = dados.tempos[2] || 0;
-                    document.getElementById('tempo4').value = dados.tempos[3] || 0;
-                    document.getElementById('tempo5').value = dados.tempos[4] || 0;
+                let camposPreenchidos = 0;
+                
+                // Preencher tempos
+                if (dados.tempos && Array.isArray(dados.tempos) && dados.tempos.length >= 5) {
+                    const camposTempos = ['tempo1', 'tempo2', 'tempo3', 'tempo4', 'tempo5'];
+                    
+                    camposTempos.forEach((campo, index) => {
+                        const elemento = document.getElementById(campo);
+                        if (elemento && dados.tempos[index] !== undefined) {
+                            elemento.value = dados.tempos[index];
+                            elemento.classList.add(confianca >= 70 ? 'campo-preenchido-ia' : 'campo-verificar-ia');
+                            camposPreenchidos++;
+                        }
+                    });
+                    
+                    console.log('✅ Tempos preenchidos:', dados.tempos);
                 }
+                
+                // Preencher produtividade
+                if (dados.produtividade !== null && dados.produtividade !== undefined) {
+                    const elemento = document.getElementById('produtividade');
+                    if (elemento) {
+                        elemento.value = dados.produtividade;
+                        elemento.classList.add(confianca >= 70 ? 'campo-preenchido-ia' : 'campo-verificar-ia');
+                        camposPreenchidos++;
+                        console.log('✅ Produtividade preenchida:', dados.produtividade);
+                    }
+                }
+                
+                // Preencher NOR
+                if (dados.nor !== null && dados.nor !== undefined) {
+                    const elemento = document.getElementById('nor');
+                    if (elemento) {
+                        elemento.value = dados.nor;
+                        elemento.classList.add(confianca >= 70 ? 'campo-preenchido-ia' : 'campo-verificar-ia');
+                        camposPreenchidos++;
+                        console.log('✅ NOR preenchido:', dados.nor);
+                    }
+                }
+                
+                // Preencher tamanho médio
                 if (dados.tamanho_medio) {
-                    // Aproximar tamanhos maiores e menores
-                    document.getElementById('tamanhosMaiores').value = (dados.tamanho_medio + 1).toFixed(1);
-                    document.getElementById('tamanhosMenores').value = (dados.tamanho_medio - 1).toFixed(1);
+                    document.getElementById('mediaTamanhoPalos').value = dados.tamanho_medio.toFixed(1);
+                    // Aproximar tamanhos maiores e menores se não fornecidos
+                    if (!dados.tamanhos_maiores || !dados.tamanhos_menores) {
+                        document.getElementById('tamanhosMaiores').value = (dados.tamanho_medio + 1).toFixed(1) + ', ' + (dados.tamanho_medio + 1.5).toFixed(1) + ', ' + (dados.tamanho_medio + 0.5).toFixed(1) + ', ' + (dados.tamanho_medio + 1.2).toFixed(1) + ', ' + (dados.tamanho_medio + 0.8).toFixed(1);
+                        document.getElementById('tamanhosMenores').value = (dados.tamanho_medio - 1).toFixed(1) + ', ' + (dados.tamanho_medio - 1.5).toFixed(1) + ', ' + (dados.tamanho_medio - 0.5).toFixed(1) + ', ' + (dados.tamanho_medio - 1.2).toFixed(1) + ', ' + (dados.tamanho_medio - 0.8).toFixed(1);
+                    }
+                    console.log('✅ Tamanho médio preenchido:', dados.tamanho_medio);
                 }
+                
+                // Preencher distância média
                 if (dados.distancia_media) {
-                    document.getElementById('distanciaTotal').value = (dados.distancia_media * 100).toFixed(2);
+                    document.getElementById('distanciaMedia').value = dados.distancia_media.toFixed(2);
+                    // Estimar distância total se não fornecida (assumindo produtividade média)
+                    if (!dados.distancia_total && dados.produtividade) {
+                        const distanciaTotal = dados.distancia_media * dados.produtividade;
+                        document.getElementById('distanciaTotal').value = distanciaTotal.toFixed(2);
+                    }
+                    console.log('✅ Distância média preenchida:', dados.distancia_media);
                 }
+                
+                // Preencher outros campos se disponíveis
+                if (dados.impulsividade) {
+                    document.getElementById('impulsividade').value = dados.impulsividade.toFixed(1);
+                }
+                if (dados.media_distancia_linhas) {
+                    document.getElementById('mediaDistanciaLinhas').value = dados.media_distancia_linhas.toFixed(2);
+                }
+                if (dados.media_margem_esquerda) {
+                    document.getElementById('mediaMargemEsquerda').value = dados.media_margem_esquerda.toFixed(2);
+                }
+                if (dados.media_margem_direita) {
+                    document.getElementById('mediaMargemDireita').value = dados.media_margem_direita.toFixed(2);
+                }
+                if (dados.media_margem_superior) {
+                    document.getElementById('mediaMargemSuperior').value = dados.media_margem_superior.toFixed(2);
+                }
+                if (dados.porcentagem_ganchos) {
+                    document.getElementById('porcentagemGanchos').value = dados.porcentagem_ganchos.toFixed(1);
+                }
+                if (dados.media_inclinacao) {
+                    document.getElementById('mediaInclinacao').value = dados.media_inclinacao.toFixed(1);
+                }
+                if (dados.total_emotividade !== null && dados.total_emotividade !== undefined) {
+                    document.getElementById('totalEmotividade').value = dados.total_emotividade;
+                }
+                
+                // Preencher irregularidades se disponíveis
+                if (dados.irregularidades) {
+                    if (dados.irregularidades.inclinacao) document.getElementById('irrInclinacao').checked = true;
+                    if (dados.irregularidades.pressao) document.getElementById('irrPressao').checked = true;
+                    if (dados.irregularidades.tamanho) document.getElementById('irrTamanho').checked = true;
+                    if (dados.irregularidades.distancia_palos) document.getElementById('irrDistanciaPalos').checked = true;
+                    if (dados.irregularidades.generalizadas) document.getElementById('irrGeneralizadas').checked = true;
+                    if (dados.irregularidades.distancia_linhas) document.getElementById('irrDistanciaLinhas').checked = true;
+                    if (dados.irregularidades.alinhamento) document.getElementById('irrAlinhamento').checked = true;
+                    if (dados.irregularidades.ganhos) document.getElementById('irrGanhos').checked = true;
+                }
+                
+                // Recalcular valores automáticos após preenchimento
+                setTimeout(() => {
+                    try {
+                        calcularProdutividadeENOR();
+                        calcularTamanhoMedio();
+                        calcularDistanciaMedia();
+                        calcularEmotividade();
+                        console.log('🔄 Valores automáticos recalculados');
+                    } catch (error) {
+                        console.log('⚠️ Erro ao recalcular valores:', error);
+                    }
+                }, 300);
+                
+                // Mostrar feedback visual
+                if (camposPreenchidos > 0) {
+                    mostrarNotificacao(
+                        `${camposPreenchidos} campos preenchidos automaticamente (${confianca}% confiança)`,
+                        confianca >= 70 ? 'success' : 'warning'
+                    );
+                }
+                
+                return camposPreenchidos;
             } else if (selectedTest === 'memoria') {
                 if (dados.evocacao_imediata) document.getElementById('evocacaoImediata').value = dados.evocacao_imediata;
                 if (dados.evocacao_tardia) document.getElementById('evocacaoTardia').value = dados.evocacao_tardia;
                 if (dados.retencao) document.getElementById('retencao').value = dados.retencao;
                 if (dados.reconhecimento) document.getElementById('reconhecimento').value = dados.reconhecimento;
             }
+            
+            return 0;
+        }
+
+        // Função melhorada de processamento da resposta da análise
+        async function processarAnaliseIA(analiseData) {
+            console.log('🔄 Processando resposta da análise IA:', analiseData);
+            
+            const dadosExtraidos = analiseData.analise_ia?.dados_extraidos || {};
+            const confianca = analiseData.analise_ia?.confianca || 0;
+            const textoExtraido = analiseData.analise_ia?.texto_extraido || '';
+            
+            // Mostrar debug se disponível
+            if (analiseData.analise_ia?.debug) {
+                console.log('🐛 Debug da análise:', analiseData.analise_ia.debug);
+            }
+            
+            // Sempre tentar preencher formulário se tiver dados
+            let camposPreenchidos = 0;
+            if (Object.keys(dadosExtraidos).length > 0) {
+                camposPreenchidos = preencherFormularioComDados(dadosExtraidos, confianca);
+            }
+            
+            // Mostrar texto extraído em área de debug (se existir)
+            const debugArea = document.getElementById('debug-texto-extraido');
+            const debugContainer = document.getElementById('debug-container');
+            if (debugArea && debugContainer) {
+                debugArea.value = textoExtraido;
+                debugContainer.style.display = textoExtraido ? 'block' : 'none';
+            }
+            
+            // Se sucesso (cálculo automático), mostrar resultado
+            if (analiseData.success && analiseData.data) {
+                console.log('✅ Resultado calculado automaticamente');
+                
+                mostrarNotificacao(
+                    `Resultado calculado automaticamente com ${confianca}% de confiança!`,
+                    'success'
+                );
+                
+                const statusDiv = document.getElementById('statusAnaliseIA');
+                if (statusDiv) {
+                    statusDiv.textContent = `✅ Análise concluída! Confiança: ${confianca}% - Resultado calculado automaticamente.`;
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                }
+                
+                resultadoCalculado = analiseData.data;
+                avancarStep(4);
+                exibirResultado(analiseData.data);
+                return;
+            }
+            
+            // Se preenchimento assistido (dados extraídos mas precisam verificação)
+            if (analiseData.preenchimento_assistido) {
+                console.log('⚠️ Preenchimento assistido ativado');
+                
+                mostrarNotificacao(
+                    `Dados preenchidos automaticamente (${confianca}% confiança). Verifique e clique em "Calcular".`,
+                    'warning',
+                    8000 // 8 segundos
+                );
+                
+                const statusDiv = document.getElementById('statusAnaliseIA');
+                if (statusDiv) {
+                    statusDiv.textContent = `⚠️ Análise parcial (${confianca}% confiança). Dados extraídos e formulário preenchido. Revise os valores e clique em "Calcular".`;
+                    statusDiv.style.background = '#fff3cd';
+                    statusDiv.style.color = '#856404';
+                }
+                
+                // Destacar botão calcular
+                const btnCalcular = document.querySelector('button[onclick*="calcularTeste"]');
+                if (btnCalcular) {
+                    btnCalcular.style.backgroundColor = '#ffc107';
+                    btnCalcular.style.animation = 'pulse 2s infinite';
+                    
+                    // Remover destaque após 5 segundos
+                    setTimeout(() => {
+                        btnCalcular.style.backgroundColor = '';
+                        btnCalcular.style.animation = '';
+                    }, 5000);
+                }
+                
+                return;
+            }
+            
+            // Se erro ou dados insuficientes
+            console.log('❌ Dados insuficientes ou erro na análise');
+            
+            mostrarNotificacao(
+                analiseData.message || 'Não foi possível extrair dados da imagem. Preencha manualmente.',
+                'error',
+                6000
+            );
+            
+            const statusDiv = document.getElementById('statusAnaliseIA');
+            if (statusDiv) {
+                statusDiv.textContent = '❌ ' + (analiseData.message || 'Não foi possível extrair dados da imagem. Tente usar a entrada manual.');
+                statusDiv.style.background = '#f8d7da';
+                statusDiv.style.color = '#721c24';
+            }
+            
+            // Se extraiu algum texto, mostrar para debug
+            if (textoExtraido && textoExtraido.trim().length > 0) {
+                console.log('📝 Texto extraído disponível para debug');
+            }
+        }
+
+        // Função melhorada de validação antes do cálculo
+        function validarDadosAntesCalculo() {
+            if (selectedTest === 'palografico') {
+                // Obter valores dos campos
+                const tempos = [
+                    parseInt(document.getElementById('tempo1').value) || 0,
+                    parseInt(document.getElementById('tempo2').value) || 0,
+                    parseInt(document.getElementById('tempo3').value) || 0,
+                    parseInt(document.getElementById('tempo4').value) || 0,
+                    parseInt(document.getElementById('tempo5').value) || 0
+                ];
+                
+                const produtividadeFornecida = parseInt(document.getElementById('produtividade').value) || 0;
+                const norFornecida = parseFloat(document.getElementById('nor').value) || 0;
+                
+                const somaTempos = tempos.reduce((a, b) => a + b, 0);
+                
+                // Verificar se temos dados mínimos
+                const temTempos = somaTempos > 0;
+                const temProdutividade = produtividadeFornecida > 0;
+                const temNOR = norFornecida > 0;
+                
+                console.log('🔍 Validação dos dados:', {
+                    tempos,
+                    somaTempos,
+                    produtividadeFornecida,
+                    norFornecida,
+                    temTempos,
+                    temProdutividade,
+                    temNOR
+                });
+                
+                // Precisamos de pelo menos tempos OU (produtividade E NOR)
+                if (!temTempos && !(temProdutividade && temNOR)) {
+                    mostrarNotificacao(
+                        '⚠️ Por favor, preencha os 5 tempos OU informe a produtividade e NOR.',
+                        'error'
+                    );
+                    return false;
+                }
+                
+                // Validar faixas dos valores
+                if (temTempos) {
+                    const temposInvalidos = tempos.filter((t, i) => t > 0 && (t < 30 || t > 300));
+                    if (temposInvalidos.length > 0) {
+                        mostrarNotificacao(
+                            '⚠️ Alguns tempos estão fora da faixa válida (30-300). Verifique os valores.',
+                            'warning'
+                        );
+                    }
+                }
+                
+                if (temProdutividade && (produtividadeFornecida < 100 || produtividadeFornecida > 1000)) {
+                    mostrarNotificacao(
+                        '⚠️ Produtividade fora da faixa esperada (100-1000). Verifique o valor.',
+                        'warning'
+                    );
+                }
+                
+                if (temNOR && (norFornecida < 0.1 || norFornecida > 100)) {
+                    mostrarNotificacao(
+                        '⚠️ NOR fora da faixa esperada (0.1-100). Verifique o valor.',
+                        'warning'
+                    );
+                }
+                
+                return true;
+            }
+            
+            return true;
+        }
+
+        // Função para mostrar notificações
+        function mostrarNotificacao(mensagem, tipo = 'info', duracao = 5000) {
+            // Remover notificações existentes
+            const existentes = document.querySelectorAll('.notificacao-ia');
+            existentes.forEach(n => n.remove());
+            
+            // Criar nova notificação
+            const notificacao = document.createElement('div');
+            const tipoClass = tipo === 'error' ? 'danger' : tipo === 'warning' ? 'warning' : tipo === 'success' ? 'success' : 'info';
+            notificacao.className = `alert alert-${tipoClass} notificacao-ia`;
+            notificacao.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                max-width: 400px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border-radius: 8px;
+                padding: 15px 20px;
+            `;
+            notificacao.innerHTML = `
+                <button type="button" class="btn-close" onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 20px; cursor: pointer; margin-left: 10px;">&times;</button>
+                ${mensagem}
+            `;
+            
+            document.body.appendChild(notificacao);
+            
+            // Remover automaticamente
+            setTimeout(() => {
+                if (notificacao.parentNode) {
+                    notificacao.remove();
+                }
+            }, duracao);
         }
 
         // Calcular teste
@@ -1218,50 +2042,206 @@
                         body: JSON.stringify({ acertos, erros, omissoes, regiao, escolaridade, idade })
                     });
                 } else if (selectedTest === 'palografico') {
-                    const tempos = [
-                        parseInt(document.getElementById('tempo1').value) || 0,
-                        parseInt(document.getElementById('tempo2').value) || 0,
-                        parseInt(document.getElementById('tempo3').value) || 0,
-                        parseInt(document.getElementById('tempo4').value) || 0,
-                        parseInt(document.getElementById('tempo5').value) || 0
-                    ];
+                    // Verificar modo de análise
+                    const modo = document.querySelector('input[name="palograficoModo"]:checked')?.value || 'manual';
                     
-                    const tamanhosMaioresStr = document.getElementById('tamanhosMaiores').value;
-                    const tamanhosMenoresStr = document.getElementById('tamanhosMenores').value;
-                    const tamanhosMaiores = tamanhosMaioresStr ? tamanhosMaioresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
-                    const tamanhosMenores = tamanhosMenoresStr ? tamanhosMenoresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
-                    
-                    // ROTEIRO COMPLETO - Todos os 13 campos
-                    const body = {
-                        tempos,
-                        tamanhos_maiores: tamanhosMaiores,
-                        tamanhos_menores: tamanhosMenores,
-                        distancia_total: document.getElementById('distanciaTotal').value ? parseFloat(document.getElementById('distanciaTotal').value) : null,
-                        produtividade: document.getElementById('produtividade').value ? parseInt(document.getElementById('produtividade').value) : null,
-                        nor: document.getElementById('nor').value ? parseFloat(document.getElementById('nor').value) : null,
-                        media_tamanho_palos: document.getElementById('mediaTamanhoPalos').value ? parseFloat(document.getElementById('mediaTamanhoPalos').value) : null,
-                        distancia_media: document.getElementById('distanciaMedia').value ? parseFloat(document.getElementById('distanciaMedia').value) : null,
-                        impulsividade: document.getElementById('impulsividade').value ? parseFloat(document.getElementById('impulsividade').value) : null,
-                        media_distancia_linhas: document.getElementById('mediaDistanciaLinhas').value ? parseFloat(document.getElementById('mediaDistanciaLinhas').value) : null,
-                        media_margem_esquerda: document.getElementById('mediaMargemEsquerda').value ? parseFloat(document.getElementById('mediaMargemEsquerda').value) : null,
-                        media_margem_direita: document.getElementById('mediaMargemDireita').value ? parseFloat(document.getElementById('mediaMargemDireita').value) : null,
-                        media_margem_superior: document.getElementById('mediaMargemSuperior').value ? parseFloat(document.getElementById('mediaMargemSuperior').value) : null,
-                        porcentagem_ganchos: document.getElementById('porcentagemGanchos').value ? parseFloat(document.getElementById('porcentagemGanchos').value) : null,
-                        media_inclinacao: document.getElementById('mediaInclinacao').value ? parseFloat(document.getElementById('mediaInclinacao').value) : null,
-                        media_direcao_linhas: document.getElementById('mediaDirecaoLinhas').value ? parseFloat(document.getElementById('mediaDirecaoLinhas').value) : null,
-                        total_emotividade: document.getElementById('totalEmotividade').value ? parseInt(document.getElementById('totalEmotividade').value) : null,
-                        regiao: document.getElementById('palograficoRegiao').value,
-                        sexo: document.getElementById('palograficoSexo').value,
-                        escolaridade: document.getElementById('palograficoEscolaridade').value,
-                        idade: document.getElementById('palograficoIdade').value ? parseInt(document.getElementById('palograficoIdade').value) : null,
-                        contexto: 'transito'
-                    };
+                    if (modo === 'ia') {
+                        // Modo: Análise por IA
+                        const imagemInput = document.getElementById('palograficoImagem');
+                        const arquivo = imagemInput?.files[0];
+                        
+                        if (!arquivo) {
+                            alert('Por favor, selecione uma imagem do teste Palográfico');
+                            return;
+                        }
+                        
+                        // Criar FormData para envio de arquivo
+                        const formData = new FormData();
+                        formData.append('imagem', arquivo);
+                        formData.append('regiao', document.getElementById('palograficoRegiaoIA').value);
+                        formData.append('sexo', document.getElementById('palograficoSexoIA').value);
+                        formData.append('escolaridade', document.getElementById('palograficoEscolaridadeIA').value);
+                        formData.append('idade', document.getElementById('palograficoIdadeIA').value || '');
+                        formData.append('contexto', 'transito');
+                        
+                        // Mostrar indicador de carregamento
+                        const statusDiv = document.getElementById('statusAnaliseIA');
+                        if (statusDiv) {
+                            statusDiv.style.display = 'block';
+                            statusDiv.textContent = '⏳ Analisando imagem com IA... Isso pode levar alguns segundos.';
+                            statusDiv.style.background = '#fff3cd';
+                            statusDiv.style.color = '#856404';
+                        }
+                        
+                        response = await fetch(`${API_BASE}/api/palografico/analisar-ia`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        // Verificar resposta antes de continuar
+                        if (!response.ok) {
+                            let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+                            try {
+                                const errorData = await response.json();
+                                errorMessage = errorData.error || errorData.message || errorMessage;
+                            } catch (e) {
+                                const text = await response.text();
+                                if (text && !text.startsWith('<!DOCTYPE')) {
+                                    errorMessage = text.substring(0, 200);
+                                }
+                            }
+                            if (statusDiv) {
+                                statusDiv.textContent = '❌ Erro: ' + errorMessage;
+                            }
+                            throw new Error(errorMessage);
+                        }
+                        
+                        const analiseData = await response.json();
+                        
+                        console.log('📊 Resposta completa da análise:', analiseData);
+                        console.log('📊 Dados extraídos:', analiseData.analise_ia?.dados_extraidos);
+                        
+                        // SEMPRE tentar preencher formulário se houver dados extraídos
+                        const dadosExtraidos = analiseData.analise_ia?.dados_extraidos || {};
+                        const temDados = Object.keys(dadosExtraidos).length > 0;
+                        
+                        // Processar resposta da análise usando função melhorada
+                        await processarAnaliseIA(analiseData);
+                        
+                        // Se sucesso (cálculo automático), já foi tratado na função processarAnaliseIA
+                        if (analiseData.success && analiseData.data) {
+                            return; // Não continuar com o fluxo normal
+                        }
+                        
+                        // Se preenchimento assistido, aguardar usuário clicar em "Calcular"
+                        if (analiseData.preenchimento_assistido) {
+                            return; // Não continuar com o fluxo normal
+                        }
+                        
+                        // Se erro ou dados insuficientes, já foi tratado na função processarAnaliseIA
+                        return; // Não continuar com o fluxo normal
+                    } else {
+                        // Modo: Entrada Manual (Roteiro Completo)
+                        // Validar dados antes de calcular
+                        if (!validarDadosAntesCalculo()) {
+                            return;
+                        }
+                        
+                        const tempo1 = parseInt(document.getElementById('tempo1').value) || 0;
+                        const tempo2 = parseInt(document.getElementById('tempo2').value) || 0;
+                        const tempo3 = parseInt(document.getElementById('tempo3').value) || 0;
+                        const tempo4 = parseInt(document.getElementById('tempo4').value) || 0;
+                        const tempo5 = parseInt(document.getElementById('tempo5').value) || 0;
+                        
+                        const tempos = [tempo1, tempo2, tempo3, tempo4, tempo5];
+                        
+                        // Validar que pelo menos alguns dados foram fornecidos
+                        const somaTempos = tempos.reduce((a, b) => a + b, 0);
+                        const produtividadeInput = document.getElementById('produtividade');
+                        const produtividadeFornecida = produtividadeInput && produtividadeInput.value ? parseInt(produtividadeInput.value) : null;
+                        
+                        // Verificar também se o NOR foi preenchido (pode indicar que dados foram extraídos pela IA)
+                        const norInput = document.getElementById('nor');
+                        const norFornecida = norInput && norInput.value ? parseFloat(norInput.value) : null;
+                        
+                        // Validação mais flexível: aceitar se tem tempos, produtividade OU NOR (indicando que dados foram extraídos)
+                        if (somaTempos === 0 && !produtividadeFornecida && !norFornecida) {
+                            mostrarNotificacao('⚠️ Por favor, preencha pelo menos os palos por minuto (5 minutos) ou informe a produtividade total.', 'error');
+                            return;
+                        }
+                        
+                        // Se tem NOR mas não tem tempos nem produtividade, tentar calcular produtividade a partir do NOR
+                        // (isso pode acontecer se a IA extraiu apenas o NOR)
+                        if (norFornecida && somaTempos === 0 && !produtividadeFornecida) {
+                            console.warn('⚠️ Apenas NOR encontrado, mas sem tempos ou produtividade. Tentando prosseguir mesmo assim.');
+                        }
+                        
+                        console.log('📊 Dados coletados do formulário:', {
+                            tempos,
+                            somaTempos,
+                            produtividadeFornecida
+                        });
+                        
+                        const tamanhosMaioresStr = document.getElementById('tamanhosMaiores').value;
+                        const tamanhosMenoresStr = document.getElementById('tamanhosMenores').value;
+                        const tamanhosMaiores = tamanhosMaioresStr ? tamanhosMaioresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
+                        const tamanhosMenores = tamanhosMenoresStr ? tamanhosMenoresStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v)) : null;
+                        
+                        // Coletar irregularidades
+                        const irregularidades = {
+                            inclinacao: document.getElementById('irrInclinacao').checked,
+                            pressao: document.getElementById('irrPressao').checked,
+                            tamanho: document.getElementById('irrTamanho').checked,
+                            distancia_palos: document.getElementById('irrDistanciaPalos').checked,
+                            generalizadas: document.getElementById('irrGeneralizadas').checked,
+                            distancia_linhas: document.getElementById('irrDistanciaLinhas').checked,
+                            alinhamento: document.getElementById('irrAlinhamento').checked,
+                            ganhos: document.getElementById('irrGanhos').checked
+                        };
+                        
+                        // Recalcular produtividade e NOR se necessário (caso tenham sido preenchidos pela IA mas não calculados)
+                        let produtividadeFinal = document.getElementById('produtividade').value ? parseInt(document.getElementById('produtividade').value) : null;
+                        let norFinal = document.getElementById('nor').value ? parseFloat(document.getElementById('nor').value) : null;
+                        
+                        // Se não tem produtividade mas tem tempos, calcular
+                        if (!produtividadeFinal && somaTempos > 0) {
+                            produtividadeFinal = somaTempos;
+                            if (document.getElementById('produtividade')) {
+                                document.getElementById('produtividade').value = produtividadeFinal;
+                            }
+                            console.log('✅ Produtividade calculada dos tempos:', produtividadeFinal);
+                        }
+                        
+                        // Se não tem NOR mas tem tempos, calcular
+                        if (!norFinal && somaTempos > 0 && produtividadeFinal) {
+                            const diferencas = [];
+                            for (let i = 1; i < tempos.length; i++) {
+                                diferencas.push(Math.abs(tempos[i] - tempos[i-1]));
+                            }
+                            const somaDiferencas = diferencas.reduce((a, b) => a + b, 0);
+                            if (produtividadeFinal > 0) {
+                                norFinal = (somaDiferencas * 100) / produtividadeFinal;
+                                norFinal = Math.round(norFinal * 10) / 10;
+                                if (document.getElementById('nor')) {
+                                    document.getElementById('nor').value = norFinal;
+                                }
+                                console.log('✅ NOR calculado dos tempos:', norFinal);
+                            }
+                        }
+                        
+                        // ROTEIRO COMPLETO - Todos os 13 campos
+                        const body = {
+                            tempos: somaTempos > 0 ? tempos : null,
+                            tamanhos_maiores: tamanhosMaiores,
+                            tamanhos_menores: tamanhosMenores,
+                            distancia_total: document.getElementById('distanciaTotal').value ? parseFloat(document.getElementById('distanciaTotal').value) : null,
+                            produtividade: produtividadeFinal,
+                            nor: norFinal,
+                            media_tamanho_palos: document.getElementById('mediaTamanhoPalos').value ? parseFloat(document.getElementById('mediaTamanhoPalos').value) : null,
+                            distancia_media: document.getElementById('distanciaMedia').value ? parseFloat(document.getElementById('distanciaMedia').value) : null,
+                            impulsividade: document.getElementById('impulsividade').value ? parseFloat(document.getElementById('impulsividade').value) : null,
+                            media_distancia_linhas: document.getElementById('mediaDistanciaLinhas').value ? parseFloat(document.getElementById('mediaDistanciaLinhas').value) : null,
+                            media_margem_esquerda: document.getElementById('mediaMargemEsquerda').value ? parseFloat(document.getElementById('mediaMargemEsquerda').value) : null,
+                            media_margem_direita: document.getElementById('mediaMargemDireita').value ? parseFloat(document.getElementById('mediaMargemDireita').value) : null,
+                            media_margem_superior: document.getElementById('mediaMargemSuperior').value ? parseFloat(document.getElementById('mediaMargemSuperior').value) : null,
+                            porcentagem_ganchos: document.getElementById('porcentagemGanchos').value ? parseFloat(document.getElementById('porcentagemGanchos').value) : null,
+                            media_inclinacao: document.getElementById('mediaInclinacao').value ? parseFloat(document.getElementById('mediaInclinacao').value) : null,
+                            media_direcao_linhas: document.getElementById('mediaDirecaoLinhas').value ? parseFloat(document.getElementById('mediaDirecaoLinhas').value) : null,
+                            total_emotividade: document.getElementById('totalEmotividade').value ? parseInt(document.getElementById('totalEmotividade').value) : null,
+                            irregularidades: irregularidades,
+                            regiao: document.getElementById('palograficoRegiao').value,
+                            sexo: document.getElementById('palograficoSexo').value,
+                            escolaridade: document.getElementById('palograficoEscolaridade').value,
+                            idade: document.getElementById('palograficoIdade').value ? parseInt(document.getElementById('palograficoIdade').value) : null,
+                            contexto: 'transito'
+                        };
 
-                    response = await fetch(`${API_BASE}/api/palografico/calcular`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
+                        response = await fetch(`${API_BASE}/api/palografico/calcular`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                    }
                 } else if (selectedTest === 'rotas') {
                     const acertosRotaA = parseInt(document.getElementById('acertosRotaA').value) || 0;
                     const errosRotaA = parseInt(document.getElementById('errosRotaA').value) || 0;
@@ -1375,6 +2355,22 @@
                     });
                 }
 
+                // Verificar se a resposta é OK antes de tentar parsear JSON
+                if (!response.ok) {
+                    let errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                    } catch (e) {
+                        // Se não conseguir parsear JSON, usar o texto da resposta
+                        const text = await response.text();
+                        if (text) {
+                            errorMessage = text.substring(0, 200); // Limitar tamanho
+                        }
+                    }
+                    throw new Error(errorMessage);
+                }
+
                 const data = await response.json();
 
                 if (data.success) {
@@ -1387,6 +2383,11 @@
                         alert('ℹ️ ' + data.aviso);
                     }
                 } else {
+                    // Tratar caso especial: análise por IA em desenvolvimento
+                    if (data.aviso && data.message && data.message.includes('desenvolvimento')) {
+                        alert('ℹ️ ' + data.aviso + '\n\nPor favor, use a entrada manual por enquanto.');
+                        return;
+                    }
                     // Melhorar mensagem de erro
                     let mensagemErro = data.error || data.message || 'Erro desconhecido';
                     
@@ -1561,34 +2562,108 @@
                 `;
                 container.innerHTML = html;
             } else if (selectedTest === 'palografico') {
-                container.innerHTML = `
+                console.log('📊 Exibindo resultado Palográfico:', data);
+                
+                // Garantir que os valores não sejam undefined/null
+                const produtividade = data.produtividade !== null && data.produtividade !== undefined ? data.produtividade : 0;
+                const nor = data.nor !== null && data.nor !== undefined ? data.nor : 0;
+                const tamanhoMedio = data.tamanho?.media || data.tamanho_medio || null;
+                const distanciaMedia = data.distancia_media || null;
+                const impulsividade = data.impulsividade || null;
+                const emotividade = data.emotividade !== null && data.emotividade !== undefined ? data.emotividade : 0;
+                
+                let html = `
                     <div class="resultBox highlight">
-                        <div class="resultValue">${data.produtividade} palos</div>
+                        <div class="resultValue">${produtividade} palos</div>
                         <div class="resultLabel">Produtividade (5 minutos)</div>
+                        ${data.classificacoes?.produtividade ? `<div style="margin-top: 5px; font-size: 12px; color: #666;">Classificação: ${data.classificacoes.produtividade}</div>` : ''}
                     </div>
                     <div class="resultBox">
-                        <strong>NOR:</strong> ${data.nor}
-                        ${data.classificacoes?.nor ? ` (${data.classificacoes.nor})` : ''}
+                        <strong>NOR (Nível de Oscilação Rítmica):</strong> ${nor.toFixed(1)}
+                        ${data.classificacoes?.nor ? ` <span style="color: #666;">(${data.classificacoes.nor})</span>` : ''}
                     </div>
-                    ${data.tamanho ? `
-                        <div class="resultBox">
-                            <strong>Tamanho Médio:</strong> ${data.tamanho.media} mm
-                            ${data.classificacoes?.tamanho ? ` (${data.classificacoes.tamanho})` : ''}
-                        </div>
-                    ` : ''}
-                    ${data.distancia_media ? `
-                        <div class="resultBox">
-                            <strong>Distância Média:</strong> ${data.distancia_media} mm
-                            ${data.classificacoes?.distancia ? ` (${data.classificacoes.distancia})` : ''}
-                        </div>
-                    ` : ''}
-                    ${data.interpretacao ? `
-                        <div class="resultBox">
-                            <strong>Interpretação:</strong><br>
-                            ${data.interpretacao.resumo_contextualizado || 'Interpretação disponível'}
-                        </div>
-                    ` : ''}
                 `;
+                
+                if (tamanhoMedio) {
+                    html += `
+                        <div class="resultBox">
+                            <strong>Tamanho Médio dos Palos:</strong> ${tamanhoMedio} mm
+                            ${data.classificacoes?.tamanho ? ` <span style="color: #666;">(${data.classificacoes.tamanho})</span>` : ''}
+                        </div>
+                    `;
+                }
+                
+                if (distanciaMedia) {
+                    html += `
+                        <div class="resultBox">
+                            <strong>Distância Média entre Palos:</strong> ${distanciaMedia.toFixed(2)} mm
+                            ${data.classificacoes?.distancia ? ` <span style="color: #666;">(${data.classificacoes.distancia})</span>` : ''}
+                        </div>
+                    `;
+                }
+                
+                if (impulsividade !== null) {
+                    html += `
+                        <div class="resultBox">
+                            <strong>Impulsividade:</strong> ${impulsividade.toFixed(1)} mm
+                        </div>
+                    `;
+                }
+                
+                if (emotividade > 0) {
+                    html += `
+                        <div class="resultBox">
+                            <strong>Emotividade (Índice de Irregularidades):</strong> ${emotividade}/8
+                        </div>
+                    `;
+                }
+                
+                // Campos adicionais do roteiro completo
+                if (data.media_distancia_linhas) {
+                    html += `<div class="resultBox"><strong>Distância Média entre Linhas:</strong> ${data.media_distancia_linhas.toFixed(2)} mm</div>`;
+                }
+                if (data.media_margem_esquerda || data.media_margem_direita || data.media_margem_superior) {
+                    html += `<div class="resultBox"><strong>Margens:</strong> Esquerda: ${data.media_margem_esquerda?.toFixed(2) || 'N/A'}mm | Direita: ${data.media_margem_direita?.toFixed(2) || 'N/A'}mm | Superior: ${data.media_margem_superior?.toFixed(2) || 'N/A'}mm</div>`;
+                }
+                if (data.porcentagem_ganchos) {
+                    html += `<div class="resultBox"><strong>Porcentagem de Ganchos:</strong> ${data.porcentagem_ganchos.toFixed(1)}%</div>`;
+                }
+                if (data.media_inclinacao) {
+                    html += `<div class="resultBox"><strong>Inclinação Média:</strong> ${data.media_inclinacao.toFixed(1)}°</div>`;
+                }
+                
+                // Interpretação completa
+                if (data.interpretacao) {
+                    html += `
+                        <div class="resultBox" style="background: #f5f5f5; border-left: 4px solid #667eea;">
+                            <strong style="display: block; margin-bottom: 10px;">📋 Interpretação Completa:</strong>
+                            ${data.interpretacao.produtividade ? `
+                                <div style="margin-bottom: 8px;">
+                                    <strong>Produtividade:</strong> ${data.interpretacao.produtividade.interpretacao || 'N/A'}
+                                </div>
+                            ` : ''}
+                            ${data.interpretacao.ritmo ? `
+                                <div style="margin-bottom: 8px;">
+                                    <strong>Ritmo:</strong> ${data.interpretacao.ritmo.interpretacao || 'N/A'}
+                                </div>
+                            ` : ''}
+                            ${data.interpretacao.resumo_contextualizado ? `
+                                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+                                    <strong>Resumo Contextualizado:</strong><br>
+                                    ${data.interpretacao.resumo_contextualizado}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+                
+                html += `
+                    <div class="resultBox" style="background: #e8f5e9; border-color: #4caf50;">
+                        <strong>Tabela Normativa Utilizada:</strong> ${data.tabela_utilizada || 'Não disponível'}
+                    </div>
+                `;
+                
+                container.innerHTML = html;
             } else if (selectedTest === 'memoria') {
                 container.innerHTML = `
                     <div class="resultBox highlight">

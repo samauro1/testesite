@@ -700,12 +700,39 @@ async function calcularPalografico(tabelaId, dados) {
   // Usar a calculadora específica do Palográfico
   const { calcularProdutividade, calcularNOR, calcularDistanciaMedia, calcularTamanhoPalos, calcularImpulsividade, calcularEmotividade, classificarPalografico, gerarInterpretacaoPalografico } = require('./palograficoCalculator');
 
-  // Extrair dados
+  console.log('📊 calcularPalografico - Dados recebidos:', JSON.stringify(dados, null, 2));
+
+  // Extrair tempos primeiro
   const tempos = dados.tempos || [dados.tempo1 || 0, dados.tempo2 || 0, dados.tempo3 || 0, dados.tempo4 || 0, dados.tempo5 || 0];
+  const somaTempos = tempos.reduce((a, b) => a + b, 0);
   
-  // Calcular valores principais
-  const produtividade = calcularProdutividade(tempos);
-  const nor = calcularNOR(tempos);
+  // Calcular produtividade - priorizar valor fornecido, depois calcular dos tempos
+  let produtividade = null;
+  if (dados.produtividade !== null && dados.produtividade !== undefined && dados.produtividade > 0) {
+    produtividade = parseInt(dados.produtividade);
+    console.log('📊 Produtividade fornecida diretamente:', produtividade);
+  } else if (somaTempos > 0) {
+    produtividade = calcularProdutividade(tempos);
+    console.log('📊 Produtividade calculada dos tempos:', tempos, '→', produtividade);
+  } else {
+    produtividade = 0;
+    console.log('⚠️ Nenhum dado de produtividade fornecido, usando 0');
+  }
+  
+  // Calcular NOR - priorizar valor fornecido, depois calcular dos tempos
+  let nor = null;
+  if (dados.nor !== null && dados.nor !== undefined && dados.nor >= 0) {
+    nor = parseFloat(dados.nor);
+    console.log('📊 NOR fornecido diretamente:', nor);
+  } else if (somaTempos > 0) {
+    nor = calcularNOR(tempos);
+    console.log('📊 NOR calculado dos tempos:', tempos, '→', nor);
+  } else {
+    nor = 0;
+    console.log('⚠️ Nenhum dado de NOR fornecido, usando 0');
+  }
+  
+  console.log('📊 Valores finais - Produtividade:', produtividade, 'NOR:', nor);
 
   // Calcular tamanho (se fornecido)
   let tamanho = null;

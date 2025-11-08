@@ -8,12 +8,12 @@ Write-Host "Parando processos Node.js na porta 3002..." -ForegroundColor Yellow
 try {
     $processes = Get-NetTCPConnection -LocalPort 3002 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique
     if ($processes) {
-        foreach ($pid in $processes) {
+        foreach ($procId in $processes) {
             try {
-                Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
-                Write-Host "  Processo $pid encerrado" -ForegroundColor Gray
+                Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+                Write-Host "  Processo $procId encerrado" -ForegroundColor Gray
             } catch {
-                Write-Host "  Nao foi possivel encerrar processo $pid" -ForegroundColor Yellow
+                Write-Host "  Nao foi possivel encerrar processo $procId" -ForegroundColor Yellow
             }
         }
     } else {
