@@ -300,6 +300,56 @@
             border-color: #764ba2;
         }
 
+        .analysisPreviewLayout {
+            display: none;
+            gap: 25px;
+            margin-top: 25px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .analysisPreviewColumn {
+            flex: 1 1 320px;
+            max-width: 480px;
+        }
+
+        .analysisPreviewColumn h4 {
+            margin-bottom: 12px;
+            color: #3949ab;
+            font-size: 16px;
+        }
+
+        .analysisPreviewImage,
+        #analysisOverlayCanvas {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 10px;
+            display: block;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .analysisPreviewImage {
+            border: 1px solid #d1d9ff;
+            background: #fff;
+        }
+
+        #analysisOverlayCanvas {
+            border: 2px solid #667eea;
+            background: #fff;
+        }
+
+        .annotationLegend {
+            margin-top: 15px;
+            font-size: 13px;
+            color: #394455;
+            background: #f5f7fa;
+            border: 1px solid #dfe3f5;
+            border-radius: 10px;
+            padding: 12px 15px;
+            line-height: 1.5;
+        }
+
         .imagePreview {
             max-width: 100%;
             max-height: 400px;
@@ -775,6 +825,19 @@
                                     <small style="color: #666;">Formatos aceitos: JPG, PNG, PDF (até 10MB)</small>
                                 </div>
                             </div>
+                            <div class="analysisPreviewLayout" id="analysisPreviewLayout">
+                                <div class="analysisPreviewColumn">
+                                    <h4>📎 Imagem carregada</h4>
+                                    <img id="analysisOriginalPreview" class="analysisPreviewImage" alt="Preview da imagem carregada">
+                                </div>
+                                <div class="analysisPreviewColumn">
+                                    <h4>🖍️ Visualização com marcações</h4>
+                                    <canvas id="analysisOverlayCanvas"></canvas>
+                                    <div class="annotationLegend" id="annotationLegend">
+                                        <p>Nenhuma imagem carregada até o momento.</p>
+                                    </div>
+                                </div>
+                            </div>
                             <div id="statusAnaliseIA" class="status-analise" style="background: #f5f5f5; border-radius: 8px; padding: 15px; margin-top: 15px; text-align: center; color: #666; display: none;">
                                 Aguardando upload de imagem...
                             </div>
@@ -1148,6 +1211,150 @@
         let selectedTest = null;
         let inputMethod = 'manual';
         let resultadoCalculado = null;
+        let lastUploadedImageDataUrl = null;
+        let analysisBaseImage = null;
+        let analysisCanvasContext = null;
+        let pendingAnnotationData = { dados: {}, meta: {} };
+
+        const analysisPreviewLayout = document.getElementById('analysisPreviewLayout');
+        const analysisOriginalPreview = document.getElementById('analysisOriginalPreview');
+        const analysisOverlayCanvas = document.getElementById('analysisOverlayCanvas');
+        const annotationLegend = document.getElementById('annotationLegend');
+
+        if (analysisOverlayCanvas) {
+            analysisCanvasContext = analysisOverlayCanvas.getContext('2d');
+        }
+
+        function escapeHtml(value) {
+            if (value === undefined || value === null) return '';
+            const str = String(value);
+            return str.replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
+
+        function limparPreviewAnalise(options = {}) {
+            if (analysisCanvasContext && analysisOverlayCanvas) {
+                analysisCanvasContext.clearRect(0, 0, analysisOverlayCanvas.width || 0, analysisOverlayCanvas.height || 0);
+            }
+            if (analysisOriginalPreview) {
+                analysisOriginalPreview.removeAttribute('src');
+            }
+            if (analysisPreviewLayout && options.ocultar) {
+                analysisPreviewLayout.style.display = 'none';
+            }
+            updateAnnotationLegend({}, { message: 'Nenhuma imagem carregada.' });
+            analysisBaseImage = null;
+            lastUploadedImageDataUrl = null;
+            pendingAnnotationData = { dados: {}, meta: {} };
+        }
+
+        function carregarImagemParaPreview(dataUrl) {
+            if (!analysisOverlayCanvas || !analysisCanvasContext) return;
+            analysisBaseImage = new Image();
+            analysisBaseImage.onload = () => {
+                analysisOverlayCanvas.width = analysisBaseImage.width;
+                analysisOverlayCanvas.height = analysisBaseImage.height;
+                if (analysisPreviewLayout) {
+                    analysisPreviewLayout.style.display = 'flex';
+                }
+                renderAnalysisOverlay(pendingAnnotationData.dados, pendingAnnotationData.meta);
+            };
+            analysisBaseImage.src = dataUrl;
+        }
+
+        function drawGuideRect(ctx, x, y, w, h, strokeColor, fillColor, label) {
+            ctx.save();
+            ctx.lineWidth = Math.max(2, ctx.canvas.width * 0.003);
+            ctx.strokeStyle = strokeColor;
+            if (fillColor) {
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(x, y, w, h);
+            }
+            ctx.strokeRect(x, y, w, h);
+            if (label) {
+                ctx.font = `${Math.max(16, ctx.canvas.width * 0.02)}px 'Segoe UI', sans-serif`;
+                ctx.fillStyle = strokeColor;
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.65)';
+                ctx.shadowBlur = Math.max(2, ctx.canvas.width * 0.003);
+                ctx.fillText(label, x + Math.max(10, ctx.canvas.width * 0.015), y + Math.max(22, ctx.canvas.height * 0.035));
+            }
+            ctx.restore();
+        }
+
+        function renderAnalysisOverlay(dados = {}, meta = {}) {
+            pendingAnnotationData = { dados, meta };
+            if (!analysisCanvasContext || !analysisBaseImage || !analysisBaseImage.complete) {
+                updateAnnotationLegend(dados, meta);
+                return;
+            }
+
+            const canvas = analysisOverlayCanvas;
+            const ctx = analysisCanvasContext;
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(analysisBaseImage, 0, 0, width, height);
+
+            drawGuideRect(ctx, width * 0.05, height * 0.03, width * 0.58, height * 0.14, 'rgba(63,81,181,0.95)', 'rgba(63,81,181,0.12)', 'Dados pessoais');
+            drawGuideRect(ctx, width * 0.67, height * 0.03, width * 0.28, height * 0.14, 'rgba(76,175,80,0.95)', 'rgba(76,175,80,0.14)', 'Tempos');
+            drawGuideRect(ctx, width * 0.67, height * 0.18, width * 0.28, height * 0.12, 'rgba(255,152,0,0.9)', 'rgba(255,152,0,0.14)', 'Diferenças');
+            drawGuideRect(ctx, width * 0.05, height * 0.22, width * 0.9, height * 0.62, 'rgba(94,53,177,0.9)', 'rgba(94,53,177,0.07)', 'Campo de palos');
+
+            ctx.save();
+            ctx.font = `${Math.max(18, width * 0.02)}px 'Segoe UI', sans-serif`;
+            ctx.shadowColor = 'rgba(255,255,255,0.8)';
+            ctx.shadowBlur = Math.max(2, width * 0.002);
+            if (dados.temposPalografico && dados.temposPalografico.length === 5) {
+                ctx.fillStyle = 'rgba(27,94,32,0.95)';
+                ctx.fillText(`Tempos: ${dados.temposPalografico.join(' • ')}`, width * 0.68, height * 0.11);
+            } else {
+                ctx.fillStyle = 'rgba(198,40,40,0.95)';
+                ctx.fillText('Tempos não detectados automaticamente', width * 0.64, height * 0.11);
+            }
+            ctx.restore();
+
+            updateAnnotationLegend(dados, meta);
+        }
+
+        function updateAnnotationLegend(dados = {}, meta = {}) {
+            if (!annotationLegend) return;
+
+            const linhas = [];
+            if (meta.message) {
+                linhas.push(escapeHtml(meta.message));
+            }
+
+            if (meta.confianca !== undefined) {
+                linhas.push(`<strong>Confiança da IA:</strong> ${escapeHtml(meta.confianca)}%`);
+            }
+
+            if (dados.temposPalografico && dados.temposPalografico.length === 5) {
+                linhas.push(`<strong>Tempos (IA):</strong> ${dados.temposPalografico.map((tempo) => escapeHtml(tempo)).join(' • ')}`);
+            } else {
+                linhas.push('Tempos não foram identificados automaticamente.');
+            }
+
+            ['identificador', 'nomeCompleto', 'dataAplicacao', 'idade', 'escolaridade', 'localNascimento'].forEach((campo) => {
+                if (dados[campo]) {
+                    const rotulo = campo
+                        .replace(/([A-Z])/g, ' $1')
+                        .replace(/^./, (c) => c.toUpperCase());
+                    linhas.push(`<strong>${escapeHtml(rotulo)}:</strong> ${escapeHtml(dados[campo])}`);
+                }
+            });
+
+            if (linhas.length === 0) {
+                linhas.push('Nenhuma informação disponível.');
+            }
+
+            annotationLegend.innerHTML = `<p>${linhas.join('<br>')}</p>`;
+        }
 
         // Seleção de teste
         document.querySelectorAll('.testCard').forEach(card => {
@@ -1249,6 +1456,7 @@
                     if (this.value === 'manual') {
                         manualDiv.style.display = 'block';
                         iaDiv.style.display = 'none';
+                        limparPreviewAnalise({ ocultar: true });
                     } else {
                         manualDiv.style.display = 'none';
                         iaDiv.style.display = 'block';
@@ -1415,6 +1623,26 @@
                         }
                         return;
                     }
+                    
+                    limparPreviewAnalise();
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        lastUploadedImageDataUrl = event.target.result;
+                        if (analysisOriginalPreview) {
+                            analysisOriginalPreview.src = lastUploadedImageDataUrl;
+                        }
+                        if (analysisPreviewLayout) {
+                            analysisPreviewLayout.style.display = 'flex';
+                        }
+                        pendingAnnotationData = {
+                            dados: {},
+                            meta: { message: 'Imagem carregada. Clique em "Calcular" para analisar.' }
+                        };
+                        updateAnnotationLegend({}, pendingAnnotationData.meta);
+                        carregarImagemParaPreview(lastUploadedImageDataUrl);
+                    };
+                    reader.readAsDataURL(arquivo);
                     
                     // Mostrar preview e iniciar análise
                     if (statusDiv) {
@@ -1832,6 +2060,14 @@
             if (debugArea && debugContainer) {
                 debugArea.value = textoExtraido;
                 debugContainer.style.display = textoExtraido ? 'block' : 'none';
+            }
+            
+            if (lastUploadedImageDataUrl && analysisCanvasContext) {
+                const metaInfo = { confianca };
+                if (!dadosExtraidos || Object.keys(dadosExtraidos).length === 0) {
+                    metaInfo.message = 'A IA não conseguiu identificar valores automaticamente. Utilize os campos ao lado para complementar.';
+                }
+                renderAnalysisOverlay(dadosExtraidos, metaInfo);
             }
             
             // Se sucesso (cálculo automático), mostrar resultado
