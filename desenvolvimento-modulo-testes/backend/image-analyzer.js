@@ -1,5 +1,5 @@
 // image-analyzer.js
-// Módulo Principal de Análise de Imagens com IA de Alta Precisão (Interno)
+// Módulo principal de análise das imagens do Palográfico com IA interna.
 
 const Tesseract = require('tesseract.js');
 const fs = require('fs-extra');
@@ -7,6 +7,9 @@ const path = require('path');
 const sharp = require('sharp');
 const stringSimilarity = require('string-similarity');
 const config = require('./config');
+
+const TEMPO_MIN = 20;
+const TEMPO_MAX = 220;
 
 let imageJsModule = null;
 
@@ -18,9 +21,7 @@ async function getImageJs() {
         ? imported.default
         : imported;
 
-    const read = moduleRef.read;
-    const decode = moduleRef.decode;
-    const encode = moduleRef.encode;
+    const { read, decode, encode } = moduleRef;
 
     if (typeof read !== 'function' || typeof decode !== 'function' || typeof encode !== 'function') {
       throw new Error('Biblioteca image-js não forneceu read/decode/encode como esperado');
@@ -31,15 +32,140 @@ async function getImageJs() {
   return imageJsModule;
 }
 
+const cloneRegexWithGlobal = (regex) => {
+  const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
+  return new RegExp(regex.source, flags);
+};
+
+const normalizeBaseText = (texto) =>
+  (texto || '')
+    .replace(/\u00AA/g, 'a')
+    .replace(/\u00BA/g, 'o')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[|]/g, ' ')
+    .trim();
+
 function calcularConcordanciaTextual(textoA, textoB) {
   if (!textoA || !textoB) return 0;
-
   try {
     return stringSimilarity.compareTwoStrings(textoA.toLowerCase(), textoB.toLowerCase());
   } catch (error) {
     console.log('⚠️ Falha ao calcular concordância com string-similarity:', error.message);
     return 0;
   }
+}
+
+function extractTemposFromText(textoNormalizado) {
+  if (!textoNormalizado) {
+    return { tempos: null, tokens: [] };
+  }
+
+  const somenteNumeros = textoNormalizado.replace(/[^\d\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const tokens = somenteNumeros
+    .split(' ')
+    .map((valor) => parseInt(valor, 10))
+    .filter((numero) => !Number.isNaN(numero));
+
+  if (tokens.length < 5) {
+    return { tempos: null, tokens };
+  }
+
+  const candidatos = tokens.filter((numero) => numero >= 10 && numero <= 400);
+  if (candidatos.length < 5) {
+    return { tempos: null, tokens: candidatos };
+  }
+
+  let melhorGrupo = null;
+  let melhorPontuacao = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i <= candidatos.length - 5; i += 1) {
+    const grupo = candidatos.slice(i, i + 5);
+    if (!grupo.every((tempo) => tempo >= TEMPO_MIN && tempo <= TEMPO_MAX)) continue;
+
+    const amplitude = Math.max(...grupo) - Math.min(...grupo);
+    const somaDiferencas = grupo.slice(1).reduce((acc, tempo, indice) => acc + Math.abs(tempo - grupo[indice]), 0);
+    const pontuacao = amplitude + somaDiferencas;
+
+    if (pontuacao < melhorPontuacao) {
+      melhorPontuacao = pontuacao;
+      melhorGrupo = grupo;
+    }
+  }
+
+  return { tempos: melhorGrupo, tokens: candidatos };
+}
+
+function validateTempos(tempos) {
+  if (!Array.isArray(tempos) || tempos.length !== 5) return false;
+  if (!tempos.every((tempo) => tempo >= TEMPO_MIN && tempo <= TEMPO_MAX)) return false;
+  const amplitude = Math.max(...tempos) - Math.min(...tempos);
+  if (amplitude > 160) return false;
+  return true;
+}
+
+async function runDigitsOCR(imagePath, rotation = 0) {
+  let pipeline = sharp(imagePath);
+  if (rotation) {
+    pipeline = pipeline.rotate(rotation);
+  }
+
+  const buffer = await pipeline.greyscale().normalise().threshold(170).png().toBuffer();
+
+  const { data } = await Tesseract.recognize(buffer, config.tesseract.lang, {
+    tessedit_char_whitelist: '0123456789 ',
+    tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT
+  });
+
+  return data.text || '';
+}
+
+async function extractTemposWithFallback(ocrResult, processedImagePath, textoNormalizado) {
+  const attempts = [];
+
+  const tentarTexto = (fonte, textoCru) => {
+    if (!textoCru) {
+      attempts.push({ fonte, numeros: [], tempos: [], valido: false });
+      return null;
+    }
+    const normalizado = normalizeBaseText(textoCru);
+    const extraido = extractTemposFromText(normalizado);
+    const valido = validateTempos(extraido.tempos);
+    attempts.push({
+      fonte,
+      numeros: extraido.tokens.slice(0, 20),
+      tempos: extraido.tempos || [],
+      valido
+    });
+    return valido ? extraido.tempos : null;
+  };
+
+  let tempos = tentarTexto('ocr-principal', textoNormalizado);
+  if (tempos) return { tempos, attempts };
+
+  tempos = tentarTexto('ocr-auto', ocrResult.ensemble?.auto?.text);
+  if (tempos) return { tempos, attempts };
+
+  tempos = tentarTexto('ocr-singleBlock', ocrResult.ensemble?.singleBlock?.text);
+  if (tempos) return { tempos, attempts };
+
+  try {
+    const textoDigitos = await runDigitsOCR(processedImagePath);
+    tempos = tentarTexto('ocr-digitos', textoDigitos);
+    if (tempos) return { tempos, attempts };
+  } catch (erro) {
+    console.log('⚠️ Falha no OCR restrito a dígitos:', erro.message);
+  }
+
+  try {
+    const textoDigitosRot = await runDigitsOCR(processedImagePath, 180);
+    tempos = tentarTexto('ocr-digitos-rot180', textoDigitosRot);
+    if (tempos) return { tempos, attempts };
+  } catch (erro) {
+    console.log('⚠️ Falha no OCR de dígitos com rotação 180°:', erro.message);
+  }
+
+  return { tempos: null, attempts };
 }
 
 async function forensicPreprocess(imagePathOrBuffer, outputPath) {
@@ -67,13 +193,13 @@ async function forensicPreprocess(imagePathOrBuffer, outputPath) {
       baseImage = decode(inputBuffer);
     }
 
-    let deskewedImage = baseImage;
+    let imagemAjustada = baseImage;
     try {
-      const mask = baseImage.grey().mask({ algorithm: 'otsu' });
+      const mask = baseImage.grey().threshold({ algorithm: 'otsu' });
       const feret = mask.getFeret();
       const angle = feret?.maxDiameter?.angle ?? 0;
       if (Number.isFinite(angle) && Math.abs(angle) > 0.1) {
-        deskewedImage = baseImage.rotate(-angle);
+        imagemAjustada = baseImage.rotate(-angle);
         console.log(`📐 Pré-processamento: ângulo corrigido em ${angle.toFixed(2)}°`);
       } else {
         console.log('📐 Pré-processamento: ângulo desprezível, sem rotação aplicada.');
@@ -85,7 +211,7 @@ async function forensicPreprocess(imagePathOrBuffer, outputPath) {
         if (typeof grey.getAngle === 'function') {
           const altAngle = grey.getAngle();
           if (Number.isFinite(altAngle) && Math.abs(altAngle) > 0.1) {
-            deskewedImage = baseImage.rotate(-altAngle);
+            imagemAjustada = baseImage.rotate(-altAngle);
             console.log(`📐 Pré-processamento: fallback angle corrigido em ${altAngle.toFixed(2)}°`);
           }
         }
@@ -94,7 +220,7 @@ async function forensicPreprocess(imagePathOrBuffer, outputPath) {
       }
     }
 
-    const encoded = encode(deskewedImage, { format: 'png' });
+    const encoded = encode(imagemAjustada, { format: 'png' });
     const deskewedBuffer = Buffer.from(encoded);
 
     const { data } = await sharp(deskewedBuffer)
@@ -140,8 +266,8 @@ async function forensicPreprocess(imagePathOrBuffer, outputPath) {
 async function runInternalEnsemble(imagePath) {
   console.log('🤝 Iniciando Ensemble Interno de OCR...');
 
-  const createOcrJob = (psmMode, label) => {
-    return Tesseract.recognize(imagePath, config.tesseract.lang, {
+  const criarTarefaOCR = (psmMode, label) =>
+    Tesseract.recognize(imagePath, config.tesseract.lang, {
       logger: (m) => {
         if (m.status === 'recognizing text' && m.progress > 0) {
           console.log(`📝 OCR Progress (PSM ${label}): ${Math.round(m.progress * 100)}%`);
@@ -151,44 +277,39 @@ async function runInternalEnsemble(imagePath) {
       tessedit_char_whitelist:
         '0123456789.,:;!?()-[]{} ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáéíóúçãõâêîôûÁÉÍÓÚÇÃÕÂÊÎÔÛ',
       tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
-    }).then((r) => ({ ...r.data, psm: psmMode, label }));
-  };
+    }).then((resultado) => ({ ...resultado.data, psm: psmMode, label }));
 
   const [autoResult, blockResult] = await Promise.all([
-    createOcrJob(Tesseract.PSM.AUTO, 'AUTO'),
-    createOcrJob(Tesseract.PSM.SINGLE_BLOCK, 'SINGLE_BLOCK')
+    criarTarefaOCR(Tesseract.PSM.AUTO, 'AUTO'),
+    criarTarefaOCR(Tesseract.PSM.SINGLE_BLOCK, 'SINGLE_BLOCK')
   ]);
 
-  const normalizeText = (text) => text.replace(/\n\s*\n/g, '\n').replace(/\s+/g, ' ').trim();
-  const normalizedAutoText = normalizeText(autoResult.text);
-  const normalizedBlockText = normalizeText(blockResult.text);
-  const concordancia = calcularConcordanciaTextual(normalizedAutoText, normalizedBlockText);
+  const normalizarTexto = (texto) => texto.replace(/\n\s*\n/g, '\n').replace(/\s+/g, ' ').trim();
+  const textoAuto = normalizarTexto(autoResult.text);
+  const textoBloco = normalizarTexto(blockResult.text);
+  const concordancia = calcularConcordanciaTextual(textoAuto, textoBloco);
   console.log(`🤝 Concordância entre execuções: ${(concordancia * 100).toFixed(1)}%`);
 
-  let melhorResultado = autoResult;
+  let melhor = autoResult;
   if (
     blockResult.text.length > autoResult.text.length * 0.9 &&
     blockResult.confidence > autoResult.confidence * 0.9
   ) {
-    melhorResultado = blockResult;
+    melhor = blockResult;
   }
-  if (
-    melhorResultado.text.length < blockResult.text.length &&
-    blockResult.confidence >= melhorResultado.confidence
-  ) {
-    melhorResultado = blockResult;
+
+  if (melhor.text.length < blockResult.text.length && blockResult.confidence >= melhor.confidence) {
+    melhor = blockResult;
   }
 
   console.log(
-    `🏆 Resultado escolhido: ${melhorResultado.label} (conf=${melhorResultado.confidence.toFixed(
-      1
-    )} | textLength=${melhorResultado.text.length})`
+    `🏆 Resultado escolhido: ${melhor.label} (conf=${melhor.confidence.toFixed(1)} | textLength=${melhor.text.length})`
   );
 
   return {
-    text: melhorResultado.text.trim(),
-    confidence: melhorResultado.confidence,
-    config: melhorResultado.label,
+    text: melhor.text.trim(),
+    confidence: melhor.confidence,
+    config: melhor.label,
     agreement: concordancia,
     ensemble: {
       auto: {
@@ -205,57 +326,103 @@ async function runInternalEnsemble(imagePath) {
   };
 }
 
-function contextualPostProcessing(text, validationRules) {
+async function contextualPostProcessing(textoOriginal, ocrResult, processedImagePath) {
   console.log('🧠 Iniciando Pós-processamento Contextual...');
+  const textoNormalizado = normalizeBaseText(textoOriginal);
   const extractedData = {};
   const validationResults = { passed: 0, failed: 0, details: [] };
 
-  validationRules.forEach((rule) => {
-    const regexInstance = new RegExp(rule.regex.source, 'gi');
-    const matches = [...text.matchAll(regexInstance)];
+  const regras = Object.entries(config.validationRules);
+
+  // Tempos precisam de tratamento especial e assíncrono
+  const regraTempos = config.validationRules.temposPalografico;
+  const { tempos, attempts } = await extractTemposWithFallback(ocrResult, processedImagePath, textoNormalizado);
+
+  if (tempos) {
+    extractedData.temposPalografico = tempos;
+    validationResults.passed += 1;
+    validationResults.details.push({
+      key: 'temposPalografico',
+      status: 'Encontrado',
+      value: tempos,
+      tentativas: attempts
+    });
+  } else {
+    if (regraTempos.required) {
+      validationResults.failed += 1;
+      validationResults.details.push({
+        key: 'temposPalografico',
+        status: 'Falha (Obrigatório não encontrado)',
+        tentativas: attempts
+      });
+    } else {
+      validationResults.details.push({
+        key: 'temposPalografico',
+        status: 'Não encontrado (Opcional)',
+        tentativas: attempts
+      });
+    }
+  }
+
+  for (const [campo, regra] of regras) {
+    if (campo === 'temposPalografico') continue;
+
+    const pattern = regra.pattern;
+    if (!pattern) {
+      validationResults.details.push({ key: campo, status: 'Regra sem pattern configurado' });
+      continue;
+    }
+
+    const regex = cloneRegexWithGlobal(pattern);
+    const matches = [...textoNormalizado.matchAll(regex)];
 
     if (matches.length > 0) {
-      let value;
-      if (rule.type === 'table_numbers') {
-        value = matches.flatMap((match) => match.slice(1).map(Number)).filter((n) => !Number.isNaN(n));
-      } else {
-        const firstMatchGroups = matches[0].slice(1);
-        value = firstMatchGroups.join(' ').trim().replace(/\s+/g, ' ');
-        if (rule.type === 'date') {
-          value = value.replace(/\s*\/\s*/g, '/');
-        }
-        if (rule.type === 'number') {
-          const parsed = parseInt(value, 10);
-          value = Number.isNaN(parsed) ? null : parsed;
-        }
+      const valoresCapturados = matches[0].slice(1).filter(Boolean);
+      let valorExtraido = valoresCapturados.length ? valoresCapturados.join(' ').trim() : matches[0][0];
+
+      if (regra.post && typeof regra.post === 'function') {
+        valorExtraido = regra.post(valorExtraido);
       }
 
-      const hasValue =
-        value !== null && (Array.isArray(value) ? value.length > 0 : String(value).trim().length > 0);
+      const valido =
+        valorExtraido !== null &&
+        valorExtraido !== undefined &&
+        (Array.isArray(valorExtraido) ? valorExtraido.length > 0 : String(valorExtraido).trim().length > 0);
 
-      if (hasValue) {
-        extractedData[rule.key] = value;
-        validationResults.passed++;
-        validationResults.details.push({ key: rule.key, status: 'Encontrado', value });
-      } else if (rule.required) {
-        validationResults.failed++;
+      if (valido) {
+        extractedData[campo] = valorExtraido;
+        validationResults.passed += 1;
         validationResults.details.push({
-          key: rule.key,
+          key: campo,
+          status: 'Encontrado',
+          value: valorExtraido
+        });
+      } else if (regra.required) {
+        validationResults.failed += 1;
+        validationResults.details.push({
+          key: campo,
           status: 'Falha (Valor vazio)',
           rawMatches: matches.map((m) => m[0])
         });
+      } else {
+        validationResults.details.push({
+          key: campo,
+          status: 'Não encontrado (Opcional)',
+          rawMatches: matches.map((m) => m[0])
+        });
       }
-    } else if (rule.required) {
-      validationResults.failed++;
-      validationResults.details.push({ key: rule.key, status: 'Falha (Obrigatório não encontrado)' });
+    } else if (regra.required) {
+      validationResults.failed += 1;
+      validationResults.details.push({ key: campo, status: 'Falha (Obrigatório não encontrado)' });
     } else {
-      validationResults.details.push({ key: rule.key, status: 'Não encontrado (Opcional)' });
+      validationResults.details.push({ key: campo, status: 'Não encontrado (Opcional)' });
     }
-  });
+  }
 
   console.log(
     `✅ Validação contextual: ${validationResults.passed} regras passaram, ${validationResults.failed} falharam.`
   );
+
   return { extractedData, validationResults };
 }
 
@@ -266,18 +433,19 @@ function calculatePrecisionScore(ocrResult, validation, totalRules) {
   const scoreOCR = (ocrResult.confidence / 100) * scoringConfig.baseWeightOCR;
   const scoreAgreement = ocrResult.agreement * scoringConfig.agreementWeight;
 
-  const requiredFields = config.validationRules.filter((r) => r.required).length;
-  const requiredPassed = validation.details.filter(
-    (d) => d.status === 'Encontrado' && config.validationRules.find((r) => r.key === d.key)?.required
+  const regras = Object.entries(config.validationRules);
+  const obrigatorias = regras.filter(([, regra]) => regra.required).length;
+  const obrigatoriasEncontradas = validation.details.filter(
+    (detalhe) => detalhe.status === 'Encontrado' && config.validationRules[detalhe.key]?.required
   ).length;
-  const allRequiredPassed = requiredFields > 0 && requiredPassed === requiredFields;
+  const todosObrigatorios = obrigatorias > 0 && obrigatoriasEncontradas === obrigatorias;
 
   let scoreValidation = 0;
   if (totalRules > 0) {
     scoreValidation = (validation.passed / totalRules) * scoringConfig.validationWeight;
   }
 
-  const bonus = allRequiredPassed ? scoringConfig.requiredFieldBonus : 1;
+  const bonus = todosObrigatorios ? scoringConfig.requiredFieldBonus : 1;
   let finalScore = (scoreOCR + scoreAgreement + scoreValidation) * bonus * 10;
   finalScore = Math.min(10, Math.max(0, finalScore));
   console.log(`🎯 Score Final de Precisão: ${finalScore.toFixed(2)} / 10.0`);
@@ -310,11 +478,13 @@ async function analisarImagemTeste(imagemPath, testType) {
       };
     }
 
-    const { extractedData, validationResults } = contextualPostProcessing(
+    const { extractedData, validationResults } = await contextualPostProcessing(
       ocrResult.text,
-      config.validationRules
+      ocrResult,
+      finalProcessedImagePath
     );
-    const confiancaIA = calculatePrecisionScore(ocrResult, validationResults, config.validationRules.length);
+    const totalRules = Object.keys(config.validationRules).length;
+    const confiancaIA = calculatePrecisionScore(ocrResult, validationResults, totalRules);
 
     console.log('✅ Análise concluída:', {
       dadosExtraidos: extractedData,
@@ -370,7 +540,7 @@ async function analisarImagemTeste(imagemPath, testType) {
       if (processedImagePath && (await fs.pathExists(processedImagePath))) {
         await fs.unlink(processedImagePath);
       }
-      if ((Buffer.isBuffer(imagemPath) || (typeof imagemPath === 'string' && imagemPath.startsWith('data:')))) {
+      if (Buffer.isBuffer(imagemPath) || (typeof imagemPath === 'string' && imagemPath.startsWith('data:'))) {
         const tempFiles = await fs.readdir(tempDir);
         for (const file of tempFiles) {
           if (file.startsWith('temp_') && !file.includes('_processed')) {

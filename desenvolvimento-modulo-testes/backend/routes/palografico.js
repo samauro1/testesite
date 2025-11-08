@@ -281,7 +281,7 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
       precision_score: confiancaIA
     };
 
-    if (confiancaIA >= 8 && possuiTempos) {
+    if (confiancaIA >= 9 && possuiTempos) {
       console.log('✅ Confiança alta. Tentando cálculo automático...');
       try {
         const resultado = await calcularPalografico(null, {
