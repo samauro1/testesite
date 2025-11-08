@@ -259,105 +259,81 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
     }
     
     const dadosExtraidos = analiseResult.dadosExtraidos || {};
-    const confiancaIA = analiseResult.confiancaIA || 0;
-    
-    // Verificar se temos dados suficientes para calcular automaticamente
-    const temDadosSuficientes = (
-      (dadosExtraidos.tempos && dadosExtraidos.tempos.length === 5) ||
-      dadosExtraidos.produtividade ||
-      dadosExtraidos.nor
-    );
-    
+    const confiancaIA = typeof analiseResult.confiancaIA === 'number' ? analiseResult.confiancaIA : 0;
+    const temposExtraidos = Array.isArray(dadosExtraidos.temposPalografico)
+      ? dadosExtraidos.temposPalografico.slice(0, 5).map((v) => parseInt(v, 10)).filter((v) => !Number.isNaN(v))
+      : [];
+    const possuiTempos = temposExtraidos.length === 5;
+    const produtividadeCalculada = possuiTempos ? temposExtraidos.reduce((a, b) => a + b, 0) : null;
+
     console.log('📊 Avaliação dos dados:', {
-      temDadosSuficientes,
+      possuiTempos,
       confiancaIA,
       dadosExtraidos
     });
-    
-    // Se temos dados suficientes E confiança alta, calcular automaticamente
-    if (temDadosSuficientes && confiancaIA >= 70) {
-      console.log('✅ Calculando resultado automaticamente...');
-      
+
+    const analiseIA = {
+      dados_extraidos: dadosExtraidos,
+      confianca: confiancaIA,
+      texto_extraido: analiseResult.ocr_extracted_text,
+      calculo_automatico: false,
+      debug: analiseResult.debug,
+      precision_score: confiancaIA
+    };
+
+    if (confiancaIA >= 8 && possuiTempos) {
+      console.log('✅ Confiança alta. Tentando cálculo automático...');
       try {
         const resultado = await calcularPalografico(null, {
-          ...dadosExtraidos,
+          tempos: temposExtraidos,
+          produtividade: produtividadeCalculada,
+          nor: dadosExtraidos.nor ?? null,
           regiao,
           sexo,
           escolaridade,
-          idade: idade ? parseInt(idade) : null,
+          idade: idade ? parseInt(idade, 10) : null,
           contexto: contexto || 'transito'
         });
-        
-        console.log('📈 Resultado calculado:', resultado);
-        
+
+        console.log('📈 Resultado calculado automaticamente:', resultado);
+
         return res.json({
           success: true,
           data: resultado,
-          analise_ia: {
-            dados_extraidos: dadosExtraidos,
-            confianca: confiancaIA,
-            texto_extraido: analiseResult.ocr_extracted_text,
-            calculo_automatico: true,
-            debug: analiseResult.debug
-          },
-          message: `Dados extraídos automaticamente com ${confiancaIA}% de confiança`
+          analise_ia: { ...analiseIA, calculo_automatico: true },
+          message: `Dados extraídos automaticamente com precisão ${confiancaIA.toFixed(2)}/10`
         });
-        
       } catch (calcError) {
         console.error('❌ Erro no cálculo automático:', calcError);
-        
         return res.json({
           success: false,
-          analise_ia: {
-            dados_extraidos: dadosExtraidos,
-            confianca: confiancaIA,
-            texto_extraido: analiseResult.ocr_extracted_text,
-            calculo_automatico: false,
-            debug: analiseResult.debug
-          },
-          message: 'Dados extraídos, mas erro no cálculo automático. Verifique os dados e calcule manualmente.',
+          analise_ia: analiseIA,
+          message:
+            'Dados extraídos, mas houve erro no cálculo automático. Verifique os valores e calcule manualmente.',
           erro_calculo: calcError.message
         });
       }
     }
-    
-    // Se temos alguns dados mas confiança baixa, retornar para preenchimento assistido
-    else if (temDadosSuficientes && confiancaIA >= 30) {
-      console.log('⚠️ Dados extraídos com confiança média, requer verificação');
-      
+
+    if (confiancaIA >= 5 && possuiTempos) {
+      console.log('⚠️ Dados extraídos com confiança moderada, requer validação manual.');
       return res.json({
         success: false,
-        analise_ia: {
-          dados_extraidos: dadosExtraidos,
-          confianca: confiancaIA,
-          texto_extraido: analiseResult.ocr_extracted_text,
-          calculo_automatico: false,
-          debug: analiseResult.debug
-        },
-        message: `Dados extraídos com ${confiancaIA}% de confiança. Verifique os valores preenchidos e clique em "Calcular" se estiverem corretos.`,
+        analise_ia: analiseIA,
+        message:
+          'Dados extraídos com confiança moderada. Revise os valores sugeridos e finalize o cálculo manualmente.',
         preenchimento_assistido: true
       });
     }
-    
-    // Se não temos dados suficientes ou confiança muito baixa
-    else {
-      console.log('❌ Dados insuficientes ou confiança muito baixa');
-      
-      return res.json({
-        success: false,
-        analise_ia: {
-          dados_extraidos: dadosExtraidos,
-          confianca: confiancaIA,
-          texto_extraido: analiseResult.ocr_extracted_text,
-          calculo_automatico: false,
-          debug: analiseResult.debug
-        },
-        message: confiancaIA < 30 
-          ? 'Não foi possível extrair dados confiáveis da imagem. Por favor, preencha os dados manualmente.'
-          : 'Dados parciais extraídos. Complete as informações faltantes e clique em "Calcular".',
-        erro: analiseResult.erro
-      });
-    }
+
+    console.log('❌ Dados insuficientes ou precisão muito baixa.');
+    return res.json({
+      success: false,
+      analise_ia: analiseIA,
+      message:
+        'Não foi possível extrair dados confiáveis da imagem. Por favor, preencha os dados manualmente.',
+      erro: analiseResult.erro
+    });
     
   } catch (error) {
     console.error('❌ Erro na rota de análise IA:', error);

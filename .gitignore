@@ -79,3 +79,6 @@ artifacts/
 !**/public/**/*.jpg
 !**/public/**/*.jpeg
 
+# Uploads temporários
+desenvolvimento-modulo-testes/backend/uploads/
+
