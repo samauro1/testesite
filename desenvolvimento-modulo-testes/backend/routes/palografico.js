@@ -281,6 +281,7 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
     
     const dadosExtraidos = analiseResult.dadosExtraidos || {};
     const confiancaIA = typeof analiseResult.confiancaIA === 'number' ? analiseResult.confiancaIA : 0;
+    const structuredAnalysis = analiseResult.structured_analysis || null;
     const temposExtraidos = Array.isArray(dadosExtraidos.temposPalografico)
       ? dadosExtraidos.temposPalografico.slice(0, 5).map((v) => parseInt(v, 10)).filter((v) => !Number.isNaN(v))
       : [];
@@ -302,7 +303,8 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
         ...analiseResult.debug,
         manualCrop
       },
-      precision_score: confiancaIA
+      precision_score: confiancaIA,
+      structured_analysis: structuredAnalysis
     };
 
     if (confiancaIA >= 9 && possuiTempos) {

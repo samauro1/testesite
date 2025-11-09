@@ -7,6 +7,7 @@ const path = require('path');
 const sharp = require('sharp');
 const stringSimilarity = require('string-similarity');
 const config = require('./config');
+const { analyzePalograficoGeometry } = require('./palografico-metrics');
 
 const TEMPO_MIN = 20;
 const TEMPO_MAX = 220;
@@ -54,6 +55,52 @@ function calcularConcordanciaTextual(textoA, textoB) {
     console.log('⚠️ Falha ao calcular concordância com string-similarity:', error.message);
     return 0;
   }
+}
+
+function normalizarNumero(valor) {
+  if (valor === null || valor === undefined) return null;
+  if (typeof valor === 'number' && Number.isFinite(valor)) return valor;
+  const somenteNumeros = String(valor).replace(/[^\d.-]/g, '');
+  if (!somenteNumeros) return null;
+  const parsed = parseFloat(somenteNumeros);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizarTempos(valor) {
+  if (!valor) return [];
+  if (Array.isArray(valor)) {
+    return valor.map(normalizarNumero).filter((item) => item !== null);
+  }
+  if (typeof valor === 'string') {
+    return valor
+      .split(/[^\d]+/)
+      .map(normalizarNumero)
+      .filter((item) => item !== null);
+  }
+  return [];
+}
+
+function calcularProdutividadeETempos(temposValores) {
+  const tempos = temposValores.filter((n) => Number.isFinite(n));
+  const total = tempos.reduce((acc, valor) => acc + valor, 0);
+  const diferencasAbsolutas = [];
+  for (let i = 1; i < tempos.length; i += 1) {
+    diferencasAbsolutas.push(Math.abs(tempos[i] - tempos[i - 1]));
+  }
+  const somaDiferencas = diferencasAbsolutas.reduce((acc, valor) => acc + valor, 0);
+  const nor = total > 0 ? parseFloat(((somaDiferencas * 100) / total).toFixed(2)) : null;
+  return {
+    tempos,
+    total,
+    diferencasAbsolutas,
+    nor
+  };
+}
+
+function average(values) {
+  if (!values || values.length === 0) return null;
+  const total = values.reduce((acc, val) => acc + val, 0);
+  return total / values.length;
 }
 
 function extractTemposFromText(textoNormalizado) {
@@ -452,6 +499,204 @@ function calculatePrecisionScore(ocrResult, validation, totalRules) {
   return finalScore;
 }
 
+function buildStructuredAnalysis({
+  imagemPath,
+  manualCrop,
+  temposInformados,
+  extractedData,
+  geometryAnalysis
+}) {
+  const tempoInfo = calcularProdutividadeETempos(temposInformados);
+  const tempoSummaries = geometryAnalysis?.tempoSummaries || [];
+
+  const alturaMedias = tempoSummaries
+    .map((tempo) => tempo.stats.averageHeight)
+    .filter((value) => Number.isFinite(value));
+  const inclinacaoMedias = tempoSummaries
+    .map((tempo) => tempo.stats.averageInclination)
+    .filter((value) => Number.isFinite(value));
+
+  const maioresList = tempoSummaries.map((tempo) =>
+    Number.isFinite(tempo.stats.maxHeight) ? parseFloat(tempo.stats.maxHeight.toFixed(2)) : null
+  );
+  const menoresList = tempoSummaries.map((tempo) =>
+    Number.isFinite(tempo.stats.minHeight) ? parseFloat(tempo.stats.minHeight.toFixed(2)) : null
+  );
+
+  const mediaAlturaGeral =
+    alturaMedias.length > 0 ? parseFloat(average(alturaMedias).toFixed(2)) : null;
+  const mediaInclinacaoGeral =
+    inclinacaoMedias.length > 0 ? parseFloat(average(inclinacaoMedias).toFixed(2)) : null;
+
+  const maioresValidos = maioresList.filter((valor) => valor !== null);
+  const menoresValidos = menoresList.filter((valor) => valor !== null);
+  const mediaMaior = maioresValidos.length > 0 ? average(maioresValidos) : null;
+  const mediaMenor = menoresValidos.length > 0 ? average(menoresValidos) : null;
+  const mediaGeralMaiorMenor =
+    mediaMaior !== null && mediaMenor !== null
+      ? parseFloat(((mediaMaior + mediaMenor) / 2).toFixed(2))
+      : null;
+
+  const distanciaLinhasMedia = geometryAnalysis?.spacing?.average ?? null;
+  const margemEsquerdaList = (geometryAnalysis?.margins?.leftPerLine || []).map((valor) =>
+    Number.isFinite(valor) ? parseFloat(valor.toFixed(2)) : null
+  );
+  const margemDireitaList = (geometryAnalysis?.margins?.rightPerLine || []).map((valor) =>
+    Number.isFinite(valor) ? parseFloat(valor.toFixed(2)) : null
+  );
+
+  const direcoesPorLinha = (geometryAnalysis?.lines || []).map((line) =>
+    Number.isFinite(line.directionAngle) ? parseFloat(line.directionAngle.toFixed(2)) : 0
+  );
+  const direcaoMedia =
+    direcoesPorLinha.length > 0 ? parseFloat(average(direcoesPorLinha).toFixed(2)) : null;
+
+  const distanciaPalos = {
+    media_t1: tempoSummaries[0]?.stats.averageHeight !== null
+      ? parseFloat(tempoSummaries[0].stats.averageHeight.toFixed(2))
+      : null,
+    media_t2: tempoSummaries[1]?.stats.averageHeight !== null
+      ? parseFloat(tempoSummaries[1].stats.averageHeight.toFixed(2))
+      : null,
+    media_t3: tempoSummaries[2]?.stats.averageHeight !== null
+      ? parseFloat(tempoSummaries[2].stats.averageHeight.toFixed(2))
+      : null,
+    media_t4: tempoSummaries[3]?.stats.averageHeight !== null
+      ? parseFloat(tempoSummaries[3].stats.averageHeight.toFixed(2))
+      : null,
+    media_t5: tempoSummaries[4]?.stats.averageHeight !== null
+      ? parseFloat(tempoSummaries[4].stats.averageHeight.toFixed(2))
+      : null,
+    media_geral: mediaAlturaGeral
+  };
+
+  const inclinacaoPalos = {
+    media_t1: tempoSummaries[0]?.stats.averageInclination !== null
+      ? parseFloat(tempoSummaries[0].stats.averageInclination.toFixed(2))
+      : null,
+    media_t2: tempoSummaries[1]?.stats.averageInclination !== null
+      ? parseFloat(tempoSummaries[1].stats.averageInclination.toFixed(2))
+      : null,
+    media_t3: tempoSummaries[2]?.stats.averageInclination !== null
+      ? parseFloat(tempoSummaries[2].stats.averageInclination.toFixed(2))
+      : null,
+    media_t4: tempoSummaries[3]?.stats.averageInclination !== null
+      ? parseFloat(tempoSummaries[3].stats.averageInclination.toFixed(2))
+      : null,
+    media_t5: tempoSummaries[4]?.stats.averageInclination !== null
+      ? parseFloat(tempoSummaries[4].stats.averageInclination.toFixed(2))
+      : null,
+    media_geral_desvio: mediaInclinacaoGeral
+  };
+
+  const dadosPessoais = {
+    nome: extractedData.nomeCompleto || null,
+    genero: extractedData.genero || extractedData.sexo || null,
+    idade: normalizarNumero(extractedData.idade),
+    cpf: extractedData.cpf || null,
+    escolaridade: extractedData.escolaridade || null,
+    local_nascimento: extractedData.localNascimento || null,
+    data_aplicacao: extractedData.dataAplicacao || null,
+    motivo_avaliacao: extractedData.motivo || extractedData.motivoAvaliacao || null
+  };
+
+  const produtividade = {
+    secao_1: tempoInfo.tempos[0] ?? null,
+    secao_2: tempoInfo.tempos[1] ?? null,
+    secao_3: tempoInfo.tempos[2] ?? null,
+    secao_4: tempoInfo.tempos[3] ?? null,
+    secao_5: tempoInfo.tempos[4] ?? null,
+    total_calculado_ia: tempoInfo.total,
+    nor_calculado_ia: tempoInfo.nor,
+    diferencas_absolutas: tempoInfo.diferencasAbsolutas
+  };
+
+  const distanciaLinhas = {
+    media_esq: distanciaLinhasMedia !== null ? parseFloat(distanciaLinhasMedia.toFixed(2)) : null,
+    media_dir: distanciaLinhasMedia !== null ? parseFloat(distanciaLinhasMedia.toFixed(2)) : null,
+    media_geral: distanciaLinhasMedia !== null ? parseFloat(distanciaLinhasMedia.toFixed(2)) : null,
+    linhas_consideradas: geometryAnalysis?.totals?.totalLines ?? 0
+  };
+
+  const margemSuperior = {
+    ponto1: geometryAnalysis?.margins?.topPoint1 !== null
+      ? parseFloat(geometryAnalysis.margins.topPoint1.toFixed(2))
+      : null,
+    ponto2: geometryAnalysis?.margins?.topPoint2 !== null
+      ? parseFloat(geometryAnalysis.margins.topPoint2.toFixed(2))
+      : null,
+    media_geral: geometryAnalysis?.margins?.topAverage !== null
+      ? parseFloat(geometryAnalysis.margins.topAverage.toFixed(2))
+      : null
+  };
+
+  const direcaoLinhas = {
+    angulos_por_linha: direcoesPorLinha,
+    media_geral_graus: direcaoMedia,
+    linhas_consideradas: geometryAnalysis?.totals?.totalLines ?? 0
+  };
+
+  const ganchos = {
+    total_ganchos: geometryAnalysis?.totals?.totalHooks ?? 0,
+    total_palos_referencia: geometryAnalysis?.totals?.totalPalos ?? 0,
+    porcentagem: geometryAnalysis?.totals?.hookRatio !== null
+      ? parseFloat(geometryAnalysis.totals.hookRatio.toFixed(2))
+      : null
+  };
+
+  const margemEsquerda = {
+    medias_por_linha: margemEsquerdaList,
+    media_geral: margemEsquerdaList.length > 0
+      ? parseFloat(average(margemEsquerdaList).toFixed(2))
+      : null,
+    linhas_consideradas: margemEsquerdaList.length
+  };
+
+  const margemDireita = {
+    medias_por_linha: margemDireitaList,
+    media_geral: margemDireitaList.length > 0
+      ? parseFloat(average(margemDireitaList).toFixed(2))
+      : null,
+    linhas_consideradas: margemDireitaList.length
+  };
+
+  return {
+    informacoes_gerais: {
+      id_teste: `palografico_${Date.now()}`,
+      nome_arquivo_imagem: imagemPath ? path.basename(imagemPath) : null,
+      data_processamento_ia: new Date().toISOString(),
+      manual_crop_aplicado: manualCrop || null,
+      resolucao_px: {
+        width: geometryAnalysis?.geometry?.width ?? null,
+        height: geometryAnalysis?.geometry?.height ?? null
+      },
+      escala_mm_por_px: geometryAnalysis?.geometry
+        ? {
+            horizontal: parseFloat((1 / geometryAnalysis.geometry.pxPerMMX).toFixed(4)),
+            vertical: parseFloat((1 / geometryAnalysis.geometry.pxPerMMY).toFixed(4))
+          }
+        : null
+    },
+    dados_pessoais: dadosPessoais,
+    produtividade_ia: produtividade,
+    distancia_palos_ia: distanciaPalos,
+    inclinacao_palos_ia: inclinacaoPalos,
+    tamanho_palos_ia: {
+      maiores_t: maioresList,
+      menores_t: menoresList,
+      media_geral_maior_menor: mediaGeralMaiorMenor
+    },
+    distancia_linhas_ia: distanciaLinhas,
+    margem_esquerda_ia: margemEsquerda,
+    margem_direita_ia: margemDireita,
+    margem_superior_ia: margemSuperior,
+    direcao_linhas_ia: direcaoLinhas,
+    ganchos_ia: ganchos,
+    qualidade_geral_ia: geometryAnalysis?.qualitativeSummary || {},
+    linhas_detectadas: geometryAnalysis?.lines?.length ?? 0
+  };
+}
+
 async function analisarImagemTeste(imagemPath, testType, options = {}) {
   console.log(`🚀 Iniciando análise de imagem para teste: ${testType}`);
   console.log(`📁 Caminho da imagem: ${imagemPath}`);
@@ -520,6 +765,22 @@ async function analisarImagemTeste(imagemPath, testType, options = {}) {
       ocrResult,
       finalProcessedImagePath
     );
+
+    const temposExtraidos = normalizarTempos(extractedData.temposPalografico);
+    let structuredAnalysis = null;
+    try {
+      const geometryAnalysis = await analyzePalograficoGeometry(finalProcessedImagePath);
+      structuredAnalysis = buildStructuredAnalysis({
+        imagemPath,
+        manualCrop: appliedCrop,
+        temposInformados: temposExtraidos,
+        extractedData,
+        geometryAnalysis
+      });
+    } catch (geometryError) {
+      console.error('⚠️ Falha na análise geométrica:', geometryError);
+    }
+
     const totalRules = Object.keys(config.validationRules).length;
     const confiancaIA = calculatePrecisionScore(ocrResult, validationResults, totalRules);
 
@@ -527,13 +788,15 @@ async function analisarImagemTeste(imagemPath, testType, options = {}) {
       dadosExtraidos: extractedData,
       confiancaIA,
       textoExtraidoLength: ocrResult.text.length,
-      ocrAgreement: ocrResult.agreement
+      ocrAgreement: ocrResult.agreement,
+      structured: !!structuredAnalysis
     });
 
     return {
       dadosExtraidos: extractedData,
       confiancaIA,
       ocr_extracted_text: ocrResult.text,
+      structured_analysis: structuredAnalysis,
       debug: {
         ocrConfidence: ocrResult.confidence,
         textLength: ocrResult.text.length,
