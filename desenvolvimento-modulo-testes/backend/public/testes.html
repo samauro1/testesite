@@ -1404,8 +1404,11 @@
             renderAnalysisOverlay(pendingAnnotationData.dados, meta);
         }
 
-        function handleCanvasMouseDown(event) {
+        function handlePointerDown(event) {
             if (!analysisBaseImage) return;
+            if (analysisOverlayCanvas && analysisOverlayCanvas.setPointerCapture) {
+                analysisOverlayCanvas.setPointerCapture(event.pointerId);
+            }
             isDrawingSelection = true;
             selectionStart = getCanvasCoordinates(event);
             setSelection({
@@ -1417,7 +1420,7 @@
             event.preventDefault();
         }
 
-        function handleCanvasMouseMove(event) {
+        function handlePointerMove(event) {
             if (!isDrawingSelection || !selectionStart) return;
             const current = getCanvasCoordinates(event);
             const x = Math.min(selectionStart.x, current.x);
@@ -1433,8 +1436,15 @@
             event.preventDefault();
         }
 
-        function finalizeSelection() {
+        function handlePointerUp(event) {
             if (!isDrawingSelection) return;
+            if (analysisOverlayCanvas && analysisOverlayCanvas.releasePointerCapture) {
+                try {
+                    analysisOverlayCanvas.releasePointerCapture(event.pointerId);
+                } catch (err) {
+                    // ignore release errors when pointer capture is not active
+                }
+            }
             isDrawingSelection = false;
             selectionStart = null;
             if (!selectionRect || selectionRect.width < 10 || selectionRect.height < 10) {
@@ -1442,6 +1452,7 @@
             } else {
                 updateSelectionPreview();
             }
+            event.preventDefault();
         }
 
         function clearSelection() {
@@ -1458,11 +1469,10 @@
         }
 
         if (analysisOverlayCanvas) {
-            analysisOverlayCanvas.addEventListener('mousedown', handleCanvasMouseDown);
-            analysisOverlayCanvas.addEventListener('mousemove', handleCanvasMouseMove);
-            analysisOverlayCanvas.addEventListener('mouseup', finalizeSelection);
-            analysisOverlayCanvas.addEventListener('mouseleave', finalizeSelection);
-            window.addEventListener('mouseup', finalizeSelection);
+            analysisOverlayCanvas.addEventListener('pointerdown', handlePointerDown);
+            analysisOverlayCanvas.addEventListener('pointermove', handlePointerMove);
+            analysisOverlayCanvas.addEventListener('pointerup', handlePointerUp);
+            analysisOverlayCanvas.addEventListener('pointercancel', handlePointerUp);
         }
 
         if (clearSelectionButton) {
@@ -1525,21 +1535,26 @@
                 ctx.restore();
             }
 
-            drawGuideRect(ctx, width * 0.05, height * 0.03, width * 0.58, height * 0.14, 'rgba(63,81,181,0.95)', 'rgba(63,81,181,0.12)', 'Dados pessoais');
-            drawGuideRect(ctx, width * 0.67, height * 0.03, width * 0.28, height * 0.14, 'rgba(76,175,80,0.95)', 'rgba(76,175,80,0.14)', 'Tempos');
-            drawGuideRect(ctx, width * 0.67, height * 0.18, width * 0.28, height * 0.12, 'rgba(255,152,0,0.9)', 'rgba(255,152,0,0.14)', 'Diferenças');
-            drawGuideRect(ctx, width * 0.05, height * 0.22, width * 0.9, height * 0.62, 'rgba(94,53,177,0.9)', 'rgba(94,53,177,0.07)', 'Campo de palos');
+            const deveMostrarGuias = meta.showGuides || (dados && Object.keys(dados).length > 0);
+            if (deveMostrarGuias) {
+                drawGuideRect(ctx, width * 0.05, height * 0.03, width * 0.58, height * 0.14, 'rgba(63,81,181,0.95)', 'rgba(63,81,181,0.12)', 'Dados pessoais');
+                drawGuideRect(ctx, width * 0.67, height * 0.03, width * 0.28, height * 0.14, 'rgba(76,175,80,0.95)', 'rgba(76,175,80,0.14)', 'Tempos');
+                drawGuideRect(ctx, width * 0.67, height * 0.18, width * 0.28, height * 0.12, 'rgba(255,152,0,0.9)', 'rgba(255,152,0,0.14)', 'Diferenças');
+                drawGuideRect(ctx, width * 0.05, height * 0.22, width * 0.9, height * 0.62, 'rgba(94,53,177,0.9)', 'rgba(94,53,177,0.07)', 'Campo de palos');
+            }
 
             ctx.save();
             ctx.font = `${Math.max(18, width * 0.02)}px 'Segoe UI', sans-serif`;
             ctx.shadowColor = 'rgba(255,255,255,0.8)';
             ctx.shadowBlur = Math.max(2, width * 0.002);
-            if (dados.temposPalografico && dados.temposPalografico.length === 5) {
-                ctx.fillStyle = 'rgba(27,94,32,0.95)';
-                ctx.fillText(`Tempos: ${dados.temposPalografico.join(' • ')}`, width * 0.68, height * 0.11);
-            } else {
-                ctx.fillStyle = 'rgba(198,40,40,0.95)';
-                ctx.fillText('Tempos não detectados automaticamente', width * 0.64, height * 0.11);
+            if (deveMostrarGuias) {
+                if (dados.temposPalografico && dados.temposPalografico.length === 5) {
+                    ctx.fillStyle = 'rgba(27,94,32,0.95)';
+                    ctx.fillText(`Tempos: ${dados.temposPalografico.join(' • ')}`, width * 0.68, height * 0.11);
+                } else {
+                    ctx.fillStyle = 'rgba(198,40,40,0.95)';
+                    ctx.fillText('Tempos não detectados automaticamente', width * 0.64, height * 0.11);
+                }
             }
             ctx.restore();
 
@@ -2299,7 +2314,7 @@
             }
             
             if (lastUploadedImageDataUrl && analysisCanvasContext) {
-                const metaInfo = { confianca };
+                const metaInfo = { confianca, showGuides: true };
                 if (!dadosExtraidos || Object.keys(dadosExtraidos).length === 0) {
                     metaInfo.message = 'A IA não conseguiu identificar valores automaticamente. Utilize os campos ao lado para complementar.';
                 }
