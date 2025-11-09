@@ -1237,6 +1237,35 @@
         let isDrawingSelection = false;
         let selectionStart = null;
         let selectionConfirmed = false;
+        let selectionStyle = { ...DEFAULT_SELECTION_STYLE };
+        let selectionFavoriteKey = 'palografico.selection.favorite';
+        let favoriteSelection = null;
+        try {
+            const favoriteStored = localStorage.getItem(selectionFavoriteKey);
+            if (favoriteStored) {
+                const parsed = JSON.parse(favoriteStored);
+                if (
+                    parsed &&
+                    typeof parsed === 'object' &&
+                    parsed.width > 0 &&
+                    parsed.height > 0 &&
+                    parsed.left <= 1 &&
+                    parsed.top <= 1 &&
+                    parsed.width <= 1 &&
+                    parsed.height <= 1
+                ) {
+                    favoriteSelection = parsed;
+                } else {
+                    console.log(
+                        '⚠️ Seleção favorita antiga detectada. Ela será desconsiderada; salve novamente utilizando a nova versão.'
+                    );
+                    localStorage.removeItem(selectionFavoriteKey);
+                }
+            }
+        } catch (error) {
+            console.log('⚠️ Não foi possível carregar seleção favorita salva:', error.message);
+            favoriteSelection = null;
+        }
 
         const analysisPreviewLayout = document.getElementById('analysisPreviewLayout');
         const analysisOriginalPreview = document.getElementById('analysisOriginalPreview');
@@ -1245,10 +1274,75 @@
         const selectionPreviewImg = document.getElementById('selectionPreview');
         const clearSelectionButton = document.getElementById('clearSelectionButton');
         const confirmSelectionButton = document.getElementById('confirmSelectionButton');
+        const favoriteSelectorsContainer = document.createElement('div');
+        favoriteSelectorsContainer.style.display = 'flex';
+        favoriteSelectorsContainer.style.flexDirection = 'column';
+        favoriteSelectorsContainer.style.gap = '8px';
+        favoriteSelectorsContainer.style.marginTop = '12px';
+        favoriteSelectorsContainer.innerHTML = `
+            <h5 style="margin:0; color:#455a64;">⭐ Seleções favoritas</h5>
+            <div id="favoriteButtonsContainer" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px;" id="favoriteActionsContainer"></div>
+        `;
 
         if (analysisOverlayCanvas) {
             analysisCanvasContext = analysisOverlayCanvas.getContext('2d');
         }
+        const favoriteButtonsRow = favoriteSelectorsContainer.querySelector('#favoriteButtonsContainer');
+        const favoriteActionsRow = favoriteSelectorsContainer.querySelector('#favoriteActionsContainer');
+        if (favoriteActionsRow) {
+            const saveFavoriteButton = document.createElement('button');
+            saveFavoriteButton.type = 'button';
+            saveFavoriteButton.className = 'btn btn-secondary';
+            saveFavoriteButton.style.flex = '1';
+            saveFavoriteButton.textContent = 'Salvar seleção como favorita';
+            saveFavoriteButton.addEventListener('click', () => {
+                if (!selectionRect) {
+                    mostrarNotificacao('⚠️ Selecione uma área antes de salvar como favorita.', 'warning');
+                    return;
+                }
+                if (!analysisBaseImage || !analysisBaseImage.complete) {
+                    mostrarNotificacao('⚠️ Imagem ainda não carregada completamente. Tente novamente.', 'warning');
+                    return;
+                }
+                try {
+                    const normalized = normalizeRect(selectionRect);
+                    if (!normalized) {
+                        mostrarNotificacao('❌ Não foi possível normalizar a seleção atual.', 'error');
+                        return;
+                    }
+                    localStorage.setItem(selectionFavoriteKey, JSON.stringify(normalized));
+                    favoriteSelection = normalized;
+                    mostrarNotificacao('✅ Seleção salva como favorita!', 'success');
+                    renderFavoriteButtons();
+                } catch (error) {
+                    mostrarNotificacao('❌ Não foi possível salvar a seleção favorita.', 'error');
+                    console.log('⚠️ Falha ao salvar seleção favorita:', error.message);
+                }
+            });
+
+            const clearFavoriteButton = document.createElement('button');
+            clearFavoriteButton.type = 'button';
+            clearFavoriteButton.className = 'btn btn-secondary';
+            clearFavoriteButton.style.flex = '1';
+            clearFavoriteButton.textContent = 'Limpar seleção favorita';
+            clearFavoriteButton.addEventListener('click', () => {
+                try {
+                    localStorage.removeItem(selectionFavoriteKey);
+                } catch (error) {
+                    console.log('⚠️ Falha ao remover seleção favorita:', error.message);
+                }
+                favoriteSelection = null;
+                renderFavoriteButtons();
+                mostrarNotificacao('ℹ️ Seleção favorita removida.', 'info');
+            });
+
+            favoriteActionsRow.appendChild(saveFavoriteButton);
+            favoriteActionsRow.appendChild(clearFavoriteButton);
+        }
+
+        renderFavoriteButtons();
+
 
         function getCanvasCoordinates(event) {
             if (!analysisOverlayCanvas) return { x: 0, y: 0 };
@@ -1275,6 +1369,36 @@
             })[char]);
         }
 
+        const FAVORITES = [
+            {
+                name: 'faixa-tempos',
+                label: 'Tempos',
+                color: '#ffab00',
+                fill: 'rgba(255,171,0,0.18)',
+                relativeRect: { left: 0.60, top: 0.05, width: 0.36, height: 0.15 }
+            },
+            {
+                name: 'campo-palos',
+                label: 'Campo de palos',
+                color: '#00c853',
+                fill: 'rgba(0,200,83,0.15)',
+                relativeRect: { left: 0.04, top: 0.18, width: 0.93, height: 0.77 }
+            },
+            {
+                name: 'cabecalho',
+                label: 'Cabeçalho',
+                color: '#6a1b9a',
+                fill: 'rgba(106,27,154,0.15)',
+                relativeRect: { left: 0.04, top: 0.02, width: 0.55, height: 0.16 }
+            }
+        ];
+
+        const DEFAULT_SELECTION_STYLE = {
+            fill: 'rgba(0,0,0,0.45)',
+            strokeDefault: 'rgba(255,193,7,0.95)',
+            strokeConfirmed: 'rgba(0,150,136,0.95)'
+        };
+
         function limparPreviewAnalise(options = {}) {
             if (analysisCanvasContext && analysisOverlayCanvas) {
                 analysisCanvasContext.clearRect(0, 0, analysisOverlayCanvas.width || 0, analysisOverlayCanvas.height || 0);
@@ -1292,6 +1416,7 @@
             selectionRect = null;
             selectionStart = null;
             selectionConfirmed = false;
+            selectionStyle = { ...DEFAULT_SELECTION_STYLE };
             if (selectionPreviewImg) {
                 selectionPreviewImg.style.display = 'none';
                 selectionPreviewImg.removeAttribute('src');
@@ -1310,6 +1435,12 @@
                 analysisOverlayCanvas.height = analysisBaseImage.height;
                 if (analysisPreviewLayout) {
                     analysisPreviewLayout.style.display = 'flex';
+                    if (!analysisPreviewLayout.contains(favoriteSelectorsContainer)) {
+                        const targetColumn = analysisPreviewLayout.querySelector('.analysisPreviewColumn:last-of-type');
+                        if (targetColumn) {
+                            targetColumn.appendChild(favoriteSelectorsContainer);
+                        }
+                    }
                 }
                 selectionRect = null;
                 selectionConfirmed = false;
@@ -1321,6 +1452,7 @@
                     selectionPreviewImg.style.display = 'none';
                     selectionPreviewImg.removeAttribute('src');
                 }
+                renderFavoriteButtons();
                 renderAnalysisOverlay(pendingAnnotationData.dados, pendingAnnotationData.meta);
             };
             analysisBaseImage.src = dataUrl;
@@ -1384,8 +1516,138 @@
             selectionPreviewImg.style.display = 'block';
         }
 
-        function setSelection(rect) {
-            selectionRect = rect;
+        function normalizeRect(rect) {
+            if (!analysisBaseImage || !rect) return null;
+            const width = analysisBaseImage.width || 1;
+            const height = analysisBaseImage.height || 1;
+            return {
+                left: rect.x / width,
+                top: rect.y / height,
+                width: rect.width / width,
+                height: rect.height / height
+            };
+        }
+
+        function denormalizeRect(normalized) {
+            if (!analysisBaseImage || !normalized) return null;
+            const width = analysisBaseImage.width || 1;
+            const height = analysisBaseImage.height || 1;
+            return {
+                x: normalized.left * width,
+                y: normalized.top * height,
+                width: normalized.width * width,
+                height: normalized.height * height
+            };
+        }
+
+        function clampRect(rect) {
+            if (!analysisOverlayCanvas || !rect) return null;
+            const width = analysisOverlayCanvas.width;
+            const height = analysisOverlayCanvas.height;
+            const clamped = {
+                x: Math.max(0, Math.min(rect.x, width)),
+                y: Math.max(0, Math.min(rect.y, height)),
+                width: Math.max(1, Math.min(rect.width, width - Math.max(0, Math.min(rect.x, width)))),
+                height: Math.max(1, Math.min(rect.height, height - Math.max(0, Math.min(rect.y, height))))
+            };
+            if (clamped.x + clamped.width > width) {
+                clamped.width = width - clamped.x;
+            }
+            if (clamped.y + clamped.height > height) {
+                clamped.height = height - clamped.y;
+            }
+            return clamped;
+        }
+
+        function renderFavoriteButtons() {
+            if (!favoriteButtonsRow) return;
+            favoriteButtonsRow.innerHTML = '';
+
+            FAVORITES.forEach((favorite) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn';
+                button.style.flex = '1 1 120px';
+                button.style.background = favorite.color;
+                button.style.color = '#fff';
+                button.style.boxShadow = 'none';
+                button.style.fontSize = '13px';
+                button.textContent = favorite.label;
+                button.addEventListener('click', () => applyFavoriteSelection(favorite.name));
+                favoriteButtonsRow.appendChild(button);
+            });
+
+            if (favoriteSelection) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-secondary';
+                button.style.flex = '1 1 120px';
+                button.textContent = 'Favorita salva';
+                button.addEventListener('click', () => applyFavoriteSelection('favorita-salva'));
+                favoriteButtonsRow.appendChild(button);
+            }
+        }
+
+        function applyFavoriteSelection(name) {
+            if (!analysisBaseImage || !analysisBaseImage.complete) {
+                mostrarNotificacao('⚠️ Carregue uma imagem antes de aplicar uma seleção favorita.', 'warning');
+                return;
+            }
+
+            let targetRect = null;
+            let label = '';
+            let style = { ...DEFAULT_SELECTION_STYLE };
+
+            if (name === 'favorita-salva') {
+                if (!favoriteSelection) {
+                    mostrarNotificacao('ℹ️ Nenhuma seleção favorita salva.', 'info');
+                    return;
+                }
+                targetRect = denormalizeRect(favoriteSelection);
+                label = 'Favorita salva';
+                style = {
+                    fill: 'rgba(0,188,212,0.18)',
+                    strokeDefault: '#00acc1',
+                    strokeConfirmed: '#0097a7'
+                };
+            } else {
+                const preset = FAVORITES.find((fav) => fav.name === name);
+                if (!preset) {
+                    console.warn('⚠️ Seleção favorita não encontrada:', name);
+                    return;
+                }
+                const { relativeRect } = preset;
+                targetRect = {
+                    x: relativeRect.left * analysisBaseImage.width,
+                    y: relativeRect.top * analysisBaseImage.height,
+                    width: relativeRect.width * analysisBaseImage.width,
+                    height: relativeRect.height * analysisBaseImage.height
+                };
+                label = preset.label;
+                style = {
+                    fill: preset.fill || DEFAULT_SELECTION_STYLE.fill,
+                    strokeDefault: preset.color || DEFAULT_SELECTION_STYLE.strokeDefault,
+                    strokeConfirmed: preset.color || DEFAULT_SELECTION_STYLE.strokeConfirmed
+                };
+            }
+
+            targetRect = clampRect(targetRect);
+            if (!targetRect) {
+                mostrarNotificacao('❌ Não foi possível aplicar a seleção favorita.', 'error');
+                return;
+            }
+
+            selectionStyle = style;
+            setSelection(targetRect, {
+                message: `Área sugerida: ${label}. Ajuste se necessário e confirme.`,
+                favoriteLabel: label,
+                showGuides: true
+            });
+            mostrarNotificacao(`Área "${label}" aplicada. Ajuste caso necessário e confirme.`, 'info');
+        }
+
+        function setSelection(rect, options = {}) {
+            selectionRect = rect ? { ...rect } : null;
             selectionConfirmed = false;
             if (confirmSelectionButton) {
                 confirmSelectionButton.disabled = !selectionRect || selectionRect.width < 10 || selectionRect.height < 10;
@@ -1396,10 +1658,32 @@
             const selectionMeta = getSelectionMeta();
             if (selectionMeta) {
                 meta.selection = selectionMeta;
-                meta.message = 'Área selecionada aguardando confirmação.';
-            } else if (meta.selection) {
+            } else {
                 delete meta.selection;
             }
+
+            if (Object.prototype.hasOwnProperty.call(options, 'favoriteLabel')) {
+                if (options.favoriteLabel) {
+                    meta.favoriteLabel = options.favoriteLabel;
+                } else {
+                    delete meta.favoriteLabel;
+                }
+            } else if (!selectionMeta) {
+                delete meta.favoriteLabel;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(options, 'showGuides')) {
+                meta.showGuides = options.showGuides;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(options, 'message')) {
+                meta.message = options.message;
+            } else if (selectionMeta) {
+                meta.message = 'Área selecionada aguardando confirmação.';
+            } else if (!selectionMeta) {
+                delete meta.message;
+            }
+
             pendingAnnotationData.meta = meta;
             renderAnalysisOverlay(pendingAnnotationData.dados, meta);
         }
@@ -1409,6 +1693,7 @@
             if (analysisOverlayCanvas && analysisOverlayCanvas.setPointerCapture) {
                 analysisOverlayCanvas.setPointerCapture(event.pointerId);
             }
+            selectionStyle = { ...DEFAULT_SELECTION_STYLE };
             isDrawingSelection = true;
             selectionStart = getCanvasCoordinates(event);
             setSelection({
@@ -1462,6 +1747,7 @@
                 confirmSelectionButton.disabled = true;
                 confirmSelectionButton.textContent = 'Confirmar Seleção';
             }
+            selectionStyle = { ...DEFAULT_SELECTION_STYLE };
             if (selectionPreviewImg) {
                 selectionPreviewImg.style.display = 'none';
                 selectionPreviewImg.removeAttribute('src');
@@ -1481,6 +1767,8 @@
                 const meta = { ...pendingAnnotationData.meta };
                 delete meta.selection;
                 meta.message = 'Selecione a área do teste na imagem.';
+                 delete meta.favoriteLabel;
+                 delete meta.showGuides;
                 pendingAnnotationData.meta = meta;
                 renderAnalysisOverlay(pendingAnnotationData.dados, meta);
             });
@@ -1496,6 +1784,9 @@
                 if (selectionMeta) {
                     meta.selection = { ...selectionMeta };
                     meta.message = 'Área confirmada. Continue com o cálculo para analisar somente esta região.';
+                    if (meta.favoriteLabel) {
+                        meta.message = `Área "${meta.favoriteLabel}" confirmada. Continue com o cálculo para analisar somente esta região.`;
+                    }
                 }
                 pendingAnnotationData.meta = meta;
                 renderAnalysisOverlay(pendingAnnotationData.dados, meta);
@@ -1520,7 +1811,8 @@
 
             if (selectionRect) {
                 ctx.save();
-                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                const overlayFill = selectionStyle.fill || DEFAULT_SELECTION_STYLE.fill;
+                ctx.fillStyle = overlayFill;
                 ctx.fillRect(0, 0, width, height);
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
@@ -1529,7 +1821,9 @@
 
                 ctx.save();
                 ctx.lineWidth = Math.max(3, width * 0.005);
-                ctx.strokeStyle = selectionConfirmed ? 'rgba(0,150,136,0.95)' : 'rgba(255,193,7,0.95)';
+                const strokeDefault = selectionStyle.strokeDefault || DEFAULT_SELECTION_STYLE.strokeDefault;
+                const strokeConfirmed = selectionStyle.strokeConfirmed || selectionStyle.strokeDefault || DEFAULT_SELECTION_STYLE.strokeConfirmed;
+                ctx.strokeStyle = selectionConfirmed ? strokeConfirmed : strokeDefault;
                 ctx.setLineDash(selectionConfirmed ? [] : [width * 0.015, width * 0.01]);
                 ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
                 ctx.restore();
@@ -1589,6 +1883,10 @@
                 } else {
                     linhas.push('<span style="color:#ffb300;">Área ainda não confirmada. Ajuste se necessário e clique em "Confirmar Seleção".</span>');
                 }
+            }
+
+            if (meta.favoriteLabel) {
+                linhas.push(`<strong>Sugestão aplicada:</strong> ${escapeHtml(meta.favoriteLabel)}`);
             }
 
             ['identificador', 'nomeCompleto', 'dataAplicacao', 'idade', 'escolaridade', 'localNascimento'].forEach((campo) => {
