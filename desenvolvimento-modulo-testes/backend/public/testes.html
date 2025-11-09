@@ -1912,6 +1912,12 @@
                 card.classList.add('selected');
                 selectedTest = card.dataset.test;
                 atualizarTimeline(1);
+                if (currentStep !== 2) {
+                    avancarStep(2);
+                } else {
+                    mostrarSection(2);
+                }
+                setInputMethod(inputMethod);
             });
         });
 
@@ -3493,13 +3499,6 @@
             atualizarTimeline(1);
             mostrarSection(1);
         }
-
-        // Quando teste é selecionado, avançar automaticamente
-        document.querySelectorAll('.testCard').forEach(card => {
-            card.addEventListener('click', () => {
-                setTimeout(() => avancarStep(2), 300);
-            });
-        });
 
         // Mostrar formulário manual quando avançar para step 2
         const originalAvancarStep = avancarStep;
