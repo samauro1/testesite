@@ -321,7 +321,8 @@
         }
 
         .analysisPreviewImage,
-        #analysisOverlayCanvas {
+        #analysisOverlayCanvas,
+        #selectionPreview {
             width: 100%;
             max-width: 100%;
             border-radius: 10px;
@@ -336,6 +337,12 @@
 
         #analysisOverlayCanvas {
             border: 2px solid #667eea;
+            background: #fff;
+        }
+
+        #selectionPreview {
+            display: none;
+            border: 2px solid #26a69a;
             background: #fff;
         }
 
@@ -829,10 +836,21 @@
                                 <div class="analysisPreviewColumn">
                                     <h4>📎 Imagem carregada</h4>
                                     <img id="analysisOriginalPreview" class="analysisPreviewImage" alt="Preview da imagem carregada">
+                                    <div style="margin-top: 10px; font-size: 12px; color: #607d8b;">
+                                        Arraste o mouse sobre a imagem ao lado para selecionar apenas a área do teste.
+                                    </div>
                                 </div>
                                 <div class="analysisPreviewColumn">
                                     <h4>🖍️ Visualização com marcações</h4>
                                     <canvas id="analysisOverlayCanvas"></canvas>
+                                    <div style="display: flex; gap: 10px; margin-top: 12px;">
+                                        <button type="button" class="btn btn-secondary" style="flex: 1;" id="clearSelectionButton">Limpar Seleção</button>
+                                        <button type="button" class="btn" style="flex: 1; background: #1de9b6;" id="confirmSelectionButton">Confirmar Seleção</button>
+                                    </div>
+                                    <div style="margin-top: 15px;">
+                                        <h4 style="margin-bottom: 8px; color: #00897b; font-size: 15px;">📍 Área selecionada</h4>
+                                        <img id="selectionPreview" class="analysisPreviewImage" alt="Pré-visualização da área selecionada">
+                                    </div>
                                     <div class="annotationLegend" id="annotationLegend">
                                         <p>Nenhuma imagem carregada até o momento.</p>
                                     </div>
@@ -1215,14 +1233,34 @@
         let analysisBaseImage = null;
         let analysisCanvasContext = null;
         let pendingAnnotationData = { dados: {}, meta: {} };
+        let selectionRect = null;
+        let isDrawingSelection = false;
+        let selectionStart = null;
+        let selectionConfirmed = false;
 
         const analysisPreviewLayout = document.getElementById('analysisPreviewLayout');
         const analysisOriginalPreview = document.getElementById('analysisOriginalPreview');
         const analysisOverlayCanvas = document.getElementById('analysisOverlayCanvas');
         const annotationLegend = document.getElementById('annotationLegend');
+        const selectionPreviewImg = document.getElementById('selectionPreview');
+        const clearSelectionButton = document.getElementById('clearSelectionButton');
+        const confirmSelectionButton = document.getElementById('confirmSelectionButton');
 
         if (analysisOverlayCanvas) {
             analysisCanvasContext = analysisOverlayCanvas.getContext('2d');
+        }
+
+        function getCanvasCoordinates(event) {
+            if (!analysisOverlayCanvas) return { x: 0, y: 0 };
+            const rect = analysisOverlayCanvas.getBoundingClientRect();
+            const scaleX = analysisOverlayCanvas.width / rect.width;
+            const scaleY = analysisOverlayCanvas.height / rect.height;
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
+            return {
+                x: Math.min(Math.max(x, 0), analysisOverlayCanvas.width),
+                y: Math.min(Math.max(y, 0), analysisOverlayCanvas.height)
+            };
         }
 
         function escapeHtml(value) {
@@ -1251,6 +1289,17 @@
             analysisBaseImage = null;
             lastUploadedImageDataUrl = null;
             pendingAnnotationData = { dados: {}, meta: {} };
+            selectionRect = null;
+            selectionStart = null;
+            selectionConfirmed = false;
+            if (selectionPreviewImg) {
+                selectionPreviewImg.style.display = 'none';
+                selectionPreviewImg.removeAttribute('src');
+            }
+            if (confirmSelectionButton) {
+                confirmSelectionButton.disabled = true;
+                confirmSelectionButton.textContent = 'Confirmar Seleção';
+            }
         }
 
         function carregarImagemParaPreview(dataUrl) {
@@ -1261,6 +1310,16 @@
                 analysisOverlayCanvas.height = analysisBaseImage.height;
                 if (analysisPreviewLayout) {
                     analysisPreviewLayout.style.display = 'flex';
+                }
+                selectionRect = null;
+                selectionConfirmed = false;
+                if (confirmSelectionButton) {
+                    confirmSelectionButton.disabled = true;
+                    confirmSelectionButton.textContent = 'Confirmar Seleção';
+                }
+                if (selectionPreviewImg) {
+                    selectionPreviewImg.style.display = 'none';
+                    selectionPreviewImg.removeAttribute('src');
                 }
                 renderAnalysisOverlay(pendingAnnotationData.dados, pendingAnnotationData.meta);
             };
@@ -1286,6 +1345,154 @@
             ctx.restore();
         }
 
+        function getSelectionMeta() {
+            if (!analysisBaseImage || !selectionRect) return null;
+            const areaPercent = ((selectionRect.width * selectionRect.height) / (analysisBaseImage.width * analysisBaseImage.height)) * 100;
+            return {
+                x: Math.round(selectionRect.x),
+                y: Math.round(selectionRect.y),
+                width: Math.round(selectionRect.width),
+                height: Math.round(selectionRect.height),
+                areaPercent: Math.round(areaPercent * 100) / 100
+            };
+        }
+
+        function updateSelectionPreview() {
+            if (!selectionPreviewImg) return;
+            if (!selectionRect || !analysisBaseImage || !analysisBaseImage.complete) {
+                selectionPreviewImg.style.display = 'none';
+                selectionPreviewImg.removeAttribute('src');
+                return;
+            }
+
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = Math.max(1, Math.round(selectionRect.width));
+            cropCanvas.height = Math.max(1, Math.round(selectionRect.height));
+            const cropCtx = cropCanvas.getContext('2d');
+            cropCtx.drawImage(
+                analysisBaseImage,
+                selectionRect.x,
+                selectionRect.y,
+                selectionRect.width,
+                selectionRect.height,
+                0,
+                0,
+                cropCanvas.width,
+                cropCanvas.height
+            );
+            selectionPreviewImg.src = cropCanvas.toDataURL('image/png');
+            selectionPreviewImg.style.display = 'block';
+        }
+
+        function setSelection(rect) {
+            selectionRect = rect;
+            selectionConfirmed = false;
+            if (confirmSelectionButton) {
+                confirmSelectionButton.disabled = !selectionRect || selectionRect.width < 10 || selectionRect.height < 10;
+                confirmSelectionButton.textContent = selectionRect ? 'Confirmar Seleção' : 'Confirmar Seleção';
+            }
+            updateSelectionPreview();
+            const meta = { ...pendingAnnotationData.meta };
+            const selectionMeta = getSelectionMeta();
+            if (selectionMeta) {
+                meta.selection = selectionMeta;
+                meta.message = 'Área selecionada aguardando confirmação.';
+            } else if (meta.selection) {
+                delete meta.selection;
+            }
+            pendingAnnotationData.meta = meta;
+            renderAnalysisOverlay(pendingAnnotationData.dados, meta);
+        }
+
+        function handleCanvasMouseDown(event) {
+            if (!analysisBaseImage) return;
+            isDrawingSelection = true;
+            selectionStart = getCanvasCoordinates(event);
+            setSelection({
+                x: selectionStart.x,
+                y: selectionStart.y,
+                width: 1,
+                height: 1
+            });
+            event.preventDefault();
+        }
+
+        function handleCanvasMouseMove(event) {
+            if (!isDrawingSelection || !selectionStart) return;
+            const current = getCanvasCoordinates(event);
+            const x = Math.min(selectionStart.x, current.x);
+            const y = Math.min(selectionStart.y, current.y);
+            const width = Math.abs(selectionStart.x - current.x);
+            const height = Math.abs(selectionStart.y - current.y);
+            setSelection({
+                x,
+                y,
+                width,
+                height
+            });
+            event.preventDefault();
+        }
+
+        function finalizeSelection() {
+            if (!isDrawingSelection) return;
+            isDrawingSelection = false;
+            selectionStart = null;
+            if (!selectionRect || selectionRect.width < 10 || selectionRect.height < 10) {
+                setSelection(null);
+            } else {
+                updateSelectionPreview();
+            }
+        }
+
+        function clearSelection() {
+            setSelection(null);
+            selectionConfirmed = false;
+            if (confirmSelectionButton) {
+                confirmSelectionButton.disabled = true;
+                confirmSelectionButton.textContent = 'Confirmar Seleção';
+            }
+            if (selectionPreviewImg) {
+                selectionPreviewImg.style.display = 'none';
+                selectionPreviewImg.removeAttribute('src');
+            }
+        }
+
+        if (analysisOverlayCanvas) {
+            analysisOverlayCanvas.addEventListener('mousedown', handleCanvasMouseDown);
+            analysisOverlayCanvas.addEventListener('mousemove', handleCanvasMouseMove);
+            analysisOverlayCanvas.addEventListener('mouseup', finalizeSelection);
+            analysisOverlayCanvas.addEventListener('mouseleave', finalizeSelection);
+            window.addEventListener('mouseup', finalizeSelection);
+        }
+
+        if (clearSelectionButton) {
+            clearSelectionButton.addEventListener('click', () => {
+                clearSelection();
+                const meta = { ...pendingAnnotationData.meta };
+                delete meta.selection;
+                meta.message = 'Selecione a área do teste na imagem.';
+                pendingAnnotationData.meta = meta;
+                renderAnalysisOverlay(pendingAnnotationData.dados, meta);
+            });
+        }
+
+        if (confirmSelectionButton) {
+            confirmSelectionButton.disabled = true;
+            confirmSelectionButton.addEventListener('click', () => {
+                if (!selectionRect) return;
+                selectionConfirmed = true;
+                const meta = { ...pendingAnnotationData.meta };
+                const selectionMeta = getSelectionMeta();
+                if (selectionMeta) {
+                    meta.selection = { ...selectionMeta };
+                    meta.message = 'Área confirmada. Continue com o cálculo para analisar somente esta região.';
+                }
+                pendingAnnotationData.meta = meta;
+                renderAnalysisOverlay(pendingAnnotationData.dados, meta);
+                confirmSelectionButton.textContent = 'Seleção Confirmada';
+            });
+        }
+
         function renderAnalysisOverlay(dados = {}, meta = {}) {
             pendingAnnotationData = { dados, meta };
             if (!analysisCanvasContext || !analysisBaseImage || !analysisBaseImage.complete) {
@@ -1300,6 +1507,23 @@
 
             ctx.clearRect(0, 0, width, height);
             ctx.drawImage(analysisBaseImage, 0, 0, width, height);
+
+            if (selectionRect) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.restore();
+
+                ctx.save();
+                ctx.lineWidth = Math.max(3, width * 0.005);
+                ctx.strokeStyle = selectionConfirmed ? 'rgba(0,150,136,0.95)' : 'rgba(255,193,7,0.95)';
+                ctx.setLineDash(selectionConfirmed ? [] : [width * 0.015, width * 0.01]);
+                ctx.strokeRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+                ctx.restore();
+            }
 
             drawGuideRect(ctx, width * 0.05, height * 0.03, width * 0.58, height * 0.14, 'rgba(63,81,181,0.95)', 'rgba(63,81,181,0.12)', 'Dados pessoais');
             drawGuideRect(ctx, width * 0.67, height * 0.03, width * 0.28, height * 0.14, 'rgba(76,175,80,0.95)', 'rgba(76,175,80,0.14)', 'Tempos');
@@ -1338,6 +1562,18 @@
                 linhas.push(`<strong>Tempos (IA):</strong> ${dados.temposPalografico.map((tempo) => escapeHtml(tempo)).join(' • ')}`);
             } else {
                 linhas.push('Tempos não foram identificados automaticamente.');
+            }
+
+            if (meta.selection) {
+                linhas.push(
+                    `<strong>Seleção:</strong> x=${meta.selection.x}px, y=${meta.selection.y}px, largura=${meta.selection.width}px, altura=${meta.selection.height}px`
+                );
+                linhas.push(`<strong>Cobertura da página:</strong> ${meta.selection.areaPercent}%`);
+                if (selectionConfirmed) {
+                    linhas.push('<span style="color:#00796b;">Área confirmada. Clique em "Calcular" para analisar somente este trecho.</span>');
+                } else {
+                    linhas.push('<span style="color:#ffb300;">Área ainda não confirmada. Ajuste se necessário e clique em "Confirmar Seleção".</span>');
+                }
             }
 
             ['identificador', 'nomeCompleto', 'dataAplicacao', 'idade', 'escolaridade', 'localNascimento'].forEach((campo) => {
@@ -2067,6 +2303,13 @@
                 if (!dadosExtraidos || Object.keys(dadosExtraidos).length === 0) {
                     metaInfo.message = 'A IA não conseguiu identificar valores automaticamente. Utilize os campos ao lado para complementar.';
                 }
+                const selectionMeta = getSelectionMeta();
+                if (selectionMeta) {
+                    metaInfo.selection = selectionMeta;
+                    metaInfo.message = selectionConfirmed
+                        ? 'Área confirmada. Resultado baseado na região selecionada.'
+                        : (metaInfo.message || 'Área selecionada aguardando confirmação.');
+                }
                 renderAnalysisOverlay(dadosExtraidos, metaInfo);
             }
             
@@ -2299,6 +2542,12 @@
                         formData.append('escolaridade', document.getElementById('palograficoEscolaridadeIA').value);
                         formData.append('idade', document.getElementById('palograficoIdadeIA').value || '');
                         formData.append('contexto', 'transito');
+                        if (selectionRect && selectionConfirmed) {
+                            formData.append('cropX', Math.round(selectionRect.x));
+                            formData.append('cropY', Math.round(selectionRect.y));
+                            formData.append('cropWidth', Math.round(selectionRect.width));
+                            formData.append('cropHeight', Math.round(selectionRect.height));
+                        }
                         
                         // Mostrar indicador de carregamento
                         const statusDiv = document.getElementById('statusAnaliseIA');

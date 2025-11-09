@@ -452,7 +452,7 @@ function calculatePrecisionScore(ocrResult, validation, totalRules) {
   return finalScore;
 }
 
-async function analisarImagemTeste(imagemPath, testType) {
+async function analisarImagemTeste(imagemPath, testType, options = {}) {
   console.log(`🚀 Iniciando análise de imagem para teste: ${testType}`);
   console.log(`📁 Caminho da imagem: ${imagemPath}`);
   console.log(`📁 Tipo: ${typeof imagemPath}, É Buffer: ${Buffer.isBuffer(imagemPath)}`);
@@ -460,9 +460,46 @@ async function analisarImagemTeste(imagemPath, testType) {
   const tempDir = path.join(__dirname, 'temp');
   await fs.ensureDir(tempDir);
   const processedImagePath = path.join(tempDir, `processed_${Date.now()}.png`);
+  let cropTempPath = null;
+  let workingImagePath = imagemPath;
+  let appliedCrop = null;
 
   try {
-    const finalProcessedImagePath = await forensicPreprocess(imagemPath, processedImagePath);
+    if (options && options.crop && typeof imagemPath === 'string') {
+      const { x, y, width, height } = options.crop;
+      if (
+        Number.isFinite(x) &&
+        Number.isFinite(y) &&
+        Number.isFinite(width) &&
+        Number.isFinite(height) &&
+        width > 0 &&
+        height > 0
+      ) {
+        try {
+          const metadata = await sharp(imagemPath).metadata();
+          const left = Math.max(0, Math.min(Math.round(x), (metadata.width || 0) - 1));
+          const top = Math.max(0, Math.min(Math.round(y), (metadata.height || 0) - 1));
+          const cropWidth = Math.min(Math.round(width), (metadata.width || 0) - left);
+          const cropHeight = Math.min(Math.round(height), (metadata.height || 0) - top);
+
+          if (cropWidth > 1 && cropHeight > 1) {
+            cropTempPath = path.join(tempDir, `crop_${Date.now()}.png`);
+            await sharp(imagemPath)
+              .extract({ left, top, width: cropWidth, height: cropHeight })
+              .toFile(cropTempPath);
+            workingImagePath = cropTempPath;
+            appliedCrop = { left, top, width: cropWidth, height: cropHeight };
+            console.log('✂️  Recorte manual aplicado na análise:', appliedCrop);
+          } else {
+            console.log('⚠️ Recorte manual ignorado: dimensões resultantes inválidas.');
+          }
+        } catch (cropError) {
+          console.log('⚠️ Falha ao aplicar recorte manual:', cropError.message);
+        }
+      }
+    }
+
+    const finalProcessedImagePath = await forensicPreprocess(workingImagePath, processedImagePath);
     if (!finalProcessedImagePath) {
       throw new Error('Pré-processamento falhou, não há imagem para OCR.');
     }
@@ -504,7 +541,8 @@ async function analisarImagemTeste(imagemPath, testType) {
         config: ocrResult.config,
         agreementScore: ocrResult.agreement,
         ensemble: ocrResult.ensemble,
-        validation: validationResults.details
+        validation: validationResults.details,
+        manualCrop: appliedCrop
       }
     };
   } catch (error) {
@@ -539,6 +577,9 @@ async function analisarImagemTeste(imagemPath, testType) {
     try {
       if (processedImagePath && (await fs.pathExists(processedImagePath))) {
         await fs.unlink(processedImagePath);
+      }
+      if (cropTempPath && (await fs.pathExists(cropTempPath))) {
+        await fs.unlink(cropTempPath);
       }
       if (Buffer.isBuffer(imagemPath) || (typeof imagemPath === 'string' && imagemPath.startsWith('data:'))) {
         const tempFiles = await fs.readdir(tempDir);

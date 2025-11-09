@@ -215,13 +215,32 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
     }
     
     // Extrair dados da requisição
-    const { regiao, sexo, escolaridade, idade, contexto } = req.body;
+    const { regiao, sexo, escolaridade, idade, contexto, cropX, cropY, cropWidth, cropHeight } = req.body;
     
     console.log('📋 Dados da requisição:', {
       regiao, sexo, escolaridade, idade, contexto,
       arquivo: req.file.originalname,
       tamanho: req.file.size
     });
+
+    let manualCrop = null;
+    const cropNumbers = [cropX, cropY, cropWidth, cropHeight].map((value) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    });
+
+    if (cropNumbers.every((value) => value !== null)) {
+      const [x, y, width, height] = cropNumbers;
+      if (width > 0 && height > 0) {
+        manualCrop = {
+          x: Math.round(x),
+          y: Math.round(y),
+          width: Math.round(width),
+          height: Math.round(height)
+        };
+        console.log('✂️  Recorte manual solicitado:', manualCrop);
+      }
+    }
     
     // Salvar imagem temporariamente
     const tempDir = path.join(__dirname, '../temp');
@@ -236,7 +255,9 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
     try {
       const { analisarImagemTeste } = require('../utils/aiAnalyzer');
       console.log('🔍 Chamando analisarImagemTeste com:', tempImagePath);
-      analiseResult = await analisarImagemTeste(tempImagePath, 'palografico');
+      analiseResult = await analisarImagemTeste(tempImagePath, 'palografico', {
+        crop: manualCrop
+      });
       console.log('🤖 Resultado da análise IA:', JSON.stringify(analiseResult, null, 2));
     } catch (analiseError) {
       console.error('❌ Erro ao chamar analisarImagemTeste:', analiseError);
@@ -277,7 +298,10 @@ router.post('/analisar-ia', upload.single('imagem'), async (req, res) => {
       confianca: confiancaIA,
       texto_extraido: analiseResult.ocr_extracted_text,
       calculo_automatico: false,
-      debug: analiseResult.debug,
+      debug: {
+        ...analiseResult.debug,
+        manualCrop
+      },
       precision_score: confiancaIA
     };
 
