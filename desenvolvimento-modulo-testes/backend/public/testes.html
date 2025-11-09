@@ -451,39 +451,39 @@
             <div class="formSection active" id="section1">
                 <h2>Selecione o Teste</h2>
                 <div class="testSelector">
-                    <div class="testCard" data-test="ac">
+                    <div class="testCard" data-test="ac" onclick="selecionarTeste('ac')">
                         <h3>📊 Teste AC</h3>
                         <p>Atenção Concentrada<br>Acertos, Erros, Omissões</p>
                     </div>
-                    <div class="testCard" data-test="beta-iii">
+                    <div class="testCard" data-test="beta-iii" onclick="selecionarTeste('beta-iii')">
                         <h3>🧩 BETA-III</h3>
                         <p>Raciocínio Matricial<br>0-25 acertos</p>
                     </div>
-                    <div class="testCard" data-test="bpa2">
+                    <div class="testCard" data-test="bpa2" onclick="selecionarTeste('bpa2')">
                         <h3>👁️ BPA-2</h3>
                         <p>Atenção<br>Alternada, Concentrada, Dividida</p>
                     </div>
-                    <div class="testCard" data-test="rotas">
+                    <div class="testCard" data-test="rotas" onclick="selecionarTeste('rotas')">
                         <h3>🛣️ Rotas de Atenção</h3>
                         <p>Rotas A, D e C</p>
                     </div>
-                    <div class="testCard" data-test="memore">
+                    <div class="testCard" data-test="memore" onclick="selecionarTeste('memore')">
                         <h3>🧠 MEMORE</h3>
                         <p>Memória<br>VP, VN, FP, FN</p>
                     </div>
-                    <div class="testCard" data-test="mig">
+                    <div class="testCard" data-test="mig" onclick="selecionarTeste('mig')">
                         <h3>🔢 MIG</h3>
                         <p>Avaliação Psicológica<br>28 questões</p>
                     </div>
-                    <div class="testCard" data-test="mvt">
+                    <div class="testCard" data-test="mvt" onclick="selecionarTeste('mvt')">
                         <h3>🚗 MVT</h3>
                         <p>Memória Visual Trânsito<br>Acertos, Erros, Omissão</p>
                     </div>
-                    <div class="testCard" data-test="r1">
+                    <div class="testCard" data-test="r1" onclick="selecionarTeste('r1')">
                         <h3>💭 R-1</h3>
                         <p>Raciocínio<br>0-40 acertos</p>
                     </div>
-                    <div class="testCard" data-test="palografico">
+                    <div class="testCard" data-test="palografico" onclick="selecionarTeste('palografico')">
                         <h3>✍️ Palográfico</h3>
                         <p>Roteiro Completo<br>13 variáveis quantitativas</p>
                     </div>
@@ -1906,19 +1906,27 @@
         }
 
         // Seleção de teste
-        document.querySelectorAll('.testCard').forEach(card => {
-            card.addEventListener('click', () => {
-                document.querySelectorAll('.testCard').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-                selectedTest = card.dataset.test;
-                atualizarTimeline(1);
-                if (currentStep !== 2) {
-                    avancarStep(2);
+        function selecionarTeste(test) {
+            if (!test) return;
+            selectedTest = test;
+            document.querySelectorAll('.testCard').forEach(card => {
+                if (card.dataset.test === test) {
+                    card.classList.add('selected');
                 } else {
-                    mostrarSection(2);
+                    card.classList.remove('selected');
                 }
-                setInputMethod(inputMethod);
             });
+            atualizarTimeline(1);
+            if (currentStep !== 2) {
+                avancarStep(2);
+            } else {
+                mostrarSection(2);
+            }
+            setInputMethod(inputMethod);
+        }
+
+        document.querySelectorAll('.testCard').forEach(card => {
+            card.addEventListener('click', () => selecionarTeste(card.dataset.test));
         });
 
         // Avançar para próximo passo
